@@ -22,6 +22,14 @@
 把导入的模块相应地替换成Ding中的模块即可。
 具体请观看[Dingraia使用方法](https://wps.lxyddice.top/meihuaguangshuo/dingraia%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95/)
 由于cloudflare的原因，博客无法使用，如需帮助请联系我
+
+# 安装
+## Download ZIP然后直接引用（需要自己装依赖）
+## Pypi 安装
+```bash
+pip install dingraia
+```
+
 ## 接受函数
 ```python
 @channel.use(ListenerSchema(listening_events[GroupMessage]))
