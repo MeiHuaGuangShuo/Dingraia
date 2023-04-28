@@ -20,9 +20,20 @@
 
 # 如何使用？
 把导入的模块相应地替换成Dingraia中的模块即可。
-具体请观看[Dingraia使用方法](https://wps.lxyddice.top/meihuaguangshuo/dingraia%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95/)
+具体请观看[Dingraia使用方法](https://wps.lxyddice.top/dingraia%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95/)
 
 由于Cloudflare和lj服务器的原因，博客可能无法使用，如需帮助请联系我
+
+## 安装
+### Pypi
+```shell
+pip install dingraia
+```
+### Pypi豆瓣源(个人认为挺快的)
+```shell
+pip install dingraia -i https://pypi.douban.com/simple
+```
+
 ## 接收函数
 ```python
 @channel.use(ListenerSchema(listening_events[GroupMessage]))  # 目前只支持GroupMessage
@@ -53,7 +64,7 @@ app.send_message(MarkDown(...))
 Flask服务端分离，Websocket链接，消息等待
 
 # 最后要说
-求梨膏，去看看[Graia](https://github.com/GraiaProject/Ariadne)项目吧，这个机器人框架真的很好用，
-至少目前用起来真的很不错。
+本项目基于[Graia](https://github.com/GraiaProject/Ariadne)QQ机器人框架开发，
+有兴趣的话去点个star吧
 
 
