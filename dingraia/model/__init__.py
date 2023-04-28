@@ -25,14 +25,21 @@ class Group:
 
 class Member:
     
-    def __init__(self, id: str = None, name: str = None, group: Group = None, admin: bool = None, origin: dict = None):
+    def __init__(self, id: str = None,
+                 staffid: int = None,
+                 name: str = None,
+                 group: Group = None,
+                 admin: bool = None,
+                 origin: dict = None):
         if origin is not None:
             id = origin.get('senderId')
             name = origin.get("senderNick")
+            staffid = origin.get("senderStaffId")
             admin = origin.get("isAdmin")
         self.origin_id = id[id.rfind("$"):]
         self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (10 ** 10) + 1000
         self.name = name
+        self.staffid = staffid
         self.group = group
         self.admin = admin
     

@@ -11,7 +11,6 @@ from .message.element import *
 from .saya import Channel, Saya
 from .tools.debug import delog
 
-delog.start()
 
 send_url = "https://oapi.dingtalk.com/robot/send?access_token={}&timestamp={}&sign={}"
 
@@ -23,7 +22,7 @@ def get_sign(secure_key: str):
     sign = hmac.new(secure_key.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha256).digest()
     sign = base64.b64encode(sign)
     sign = urllib.parse.quote_plus(sign)
-    # logger.success(f"成功加签")
+    delog.success(f"成功加签", no=40)
     return sign, timestamp
 
 
@@ -81,7 +80,7 @@ class Dingtalk:
         if type(msg) == MessageChain:
             if ats := msg.include(At):
                 at = reduce(lambda x, y: x + y, ats)
-                send_data.update(at.data)
+                send_data["at"] = at.data
         sign = self.get_sign(Dingtalk.sec_key)
         if target is None:
             url = send_url.format(Dingtalk.access_token, sign[1], sign[0])
@@ -287,7 +286,7 @@ class Dingtalk:
             logger.exception(f"端口发送失败！", err)
             return [False]
         else:
-            delog.info(resp, no=50)
+            delog.info(resp, no=40)
             if not resp['errcode']:
                 delog.success(f"成功!", no=40)
                 return [True]

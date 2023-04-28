@@ -1,4 +1,6 @@
-﻿from flask import request
+﻿import json
+
+from flask import request
 from .DingTalk import Dingtalk
 from .model import Group, Member, Bot
 from .event import MessageEvent
@@ -6,6 +8,7 @@ from .message.chain import MessageChain
 from .saya import Channel
 from .event.message import GroupMessage
 from loguru import logger
+from .tools.debug import delog
 channel = Channel.current()
 callbacks = []
 
@@ -13,13 +16,13 @@ callbacks = []
 @logger.catch
 async def bcc():
     res = request.get_json()
-    # logger.info(json.dumps(res, indent=2))
+    delog.info(json.dumps(res, indent=2), no=50)
     _e = dispackage(res)
     if not _e:
         logger.warning("无法解包！")
         return
     log(_e)
-    await channel.radio(GroupMessage, *_e, sync=True)
+    await channel.radio(GroupMessage, *_e)
 
 
 @logger.catch
