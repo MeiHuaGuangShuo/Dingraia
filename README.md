@@ -20,7 +20,7 @@
 
 # 如何使用？
 把导入的模块相应地替换成Dingraia中的模块即可。
-具体请观看[Dingraia使用方法](https://wps.lxyddice.top/dingraia%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95/)
+具体请观看[Dingraia使用方法](https://wps.rainfd.net/dingraia%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95/)
 
 由于Cloudflare和lj服务器的原因，博客可能无法使用，如需帮助请联系我
 
