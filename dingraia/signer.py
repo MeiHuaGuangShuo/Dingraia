@@ -1,13 +1,17 @@
 import base64
 import binascii
 import hashlib
+import hmac
 import io
 import json
 import string
 import struct
 import time
+import urllib.parse
 from random import choice
 from Crypto.Cipher import AES
+from loguru import logger
+from dingraia.tools.debug import delog
 
 
 def decrypt(encrypt_data, aes_key):
@@ -29,6 +33,17 @@ def encrypt(data, Token, AES_KEY, CropID):
 
 def sign_js(Token, AES_KEY, CropID):
     return encrypt("success", Token, AES_KEY, CropID)
+
+
+@logger.catch
+def get_sign(secure_key: str):
+    timestamp = str(round(time.time() * 1000))
+    sign_str = timestamp + '\n' + secure_key
+    sign = hmac.new(secure_key.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha256).digest()
+    sign = base64.b64encode(sign)
+    sign = urllib.parse.quote_plus(sign)
+    delog.success(f"成功加签", no=40)
+    return sign, timestamp
 
 
 class DingCallbackCrypto3:

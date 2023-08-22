@@ -35,6 +35,9 @@ class Channel:
         return wrapper
     
     async def radio(self, RadioEvent, *args):
+        # logger.debug(f"{type(RadioEvent) in self.reg_event} {RadioEvent} {type(RadioEvent)} {self.reg_event}")
+        if type(RadioEvent) != type:
+            RadioEvent = type(RadioEvent)
         if RadioEvent in self.reg_event:
             modules = list(itertools.chain(*self.reg_event[RadioEvent].values()))
             async_tasks = []
@@ -46,7 +49,7 @@ class Channel:
                     params = sig.parameters
                     for name, param in params.items():
                         for typ in args:
-                            if param.annotation == type(typ):
+                            if isinstance(typ, param.annotation):
                                 send[name] = typ
                     if inspect.iscoroutinefunction(f):
                         async_tasks.append(loop.create_task(logger.catch(f)(**send)))
@@ -59,6 +62,10 @@ class Channel:
     def set_channel(self):
         channel_instance.set(self)
     
-    @staticmethod
-    def current() -> "Channel":
-        return channel_instance.get()
+    @classmethod
+    def current(cls) -> "Channel":
+        try:
+            return channel_instance.get()
+        except LookupError:
+            cls().set_channel()
+            return channel_instance.get()

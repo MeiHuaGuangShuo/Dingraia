@@ -22,9 +22,13 @@ class Saya:
         yield
         saya_instance.reset(saya_token)
     
-    @staticmethod
-    def current() -> "Saya":
-        return saya_instance.get()
+    @classmethod
+    def current(cls) -> "Saya":
+        try:
+            return saya_instance.get()
+        except LookupError:
+            cls().set_channel()
+            return saya_instance.get()
     
     def require(self, module_name: str):
         if module_name.endswith('.py'):
@@ -34,14 +38,14 @@ class Saya:
         self.channels[module_name] = module
         self.mirrors[module] = module_name
         logger.info(f"模块 {module_name} 载入完成")
-    
+     
     def uninstall_channel(self, module_name: Union[str, Callable]):
         if module_name in self.channels or module_name in self.channels.values():
             if module_name in self.mirrors:
                 module_name = self.mirrors[module_name]
                 del self.mirrors[module_name]
             if module_name in self.channels:
-                del self.channels
+                del self.channels[module_name]
             channel = Channel.current()
             reged = channel.reg_event
             for event in reged.keys():
@@ -53,3 +57,5 @@ class Saya:
                         del sys.modules[module_name]
         else:
             raise KeyError(f"模块 {module_name} 没有被载入！")
+
+
