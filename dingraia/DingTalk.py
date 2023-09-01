@@ -42,6 +42,7 @@ DINGRAIA_ASCII = r"""
 |____/|_|_| |_|\__, |_|  \__,_|_|\__,_|
                |___/
 """
+ANNOUNCEMENT = "See https://dingraia.gitbook.io/dingraia for documents"
 
 
 def set_num():
@@ -506,7 +507,10 @@ class Dingtalk:
         if vers := get_dist_map():
             for k, v in vers.items():
                 ver += f"\n<magenta>{k}</>: <blue>{v}</>"
-        logger.opt(colors=True).info("\n" * 5 + __topic + DINGRAIA_ASCII + f"\n\n{ver}\n\n")
+        announcement =  ""
+        if ANNOUNCEMENT:
+            announcement = "Announcements:\n" + ANNOUNCEMENT
+        logger.opt(colors=True).info("\n" * 5 + __topic + DINGRAIA_ASCII + f"\n\n{ver}\n\n" + announcement + "\n\n")
         logger.info("Preparing loading...")
     
     def start(self, flask_app: flask.Flask = None, **kwargs):
