@@ -510,7 +510,7 @@ class Dingtalk:
         announcement =  ""
         if ANNOUNCEMENT:
             announcement = "Announcements:\n" + ANNOUNCEMENT
-        logger.opt(colors=True).info("\n" * 5 + __topic + DINGRAIA_ASCII + f"\n\n{ver}\n\n" + announcement + "\n\n")
+        logger.opt(colors=True).info("\n" * 5 + __topic + DINGRAIA_ASCII + f"\n{ver}\n\n" + announcement + "\n")
         logger.info("Preparing loading...")
     
     def start(self, flask_app: flask.Flask = None, **kwargs):
@@ -531,7 +531,7 @@ class Dingtalk:
             logger.info(f"Loading {len(self.config.stream)} stream task{'s' if len(self.config.stream) > 1 else ''}")
             for stream in self.config.stream:
                 self.create_stream(stream)
-            self.loop.create_task(self.stop())
+            self.loop.create_task(self.stop(True))
         if flask_app:
             from flask import request, jsonify
             
@@ -563,7 +563,7 @@ class Dingtalk:
                 s.close()
                 return ip
         
-        def open_connection(task_name: str):
+        async def open_connection(task_name: str):
             logger.info(f'[{task_name}] Requesting stream')
             request_headers = {
                 'Content-Type': 'application/json',
@@ -590,7 +590,9 @@ class Dingtalk:
                 logger.error(f"[{task_name}] Open connection failed, Reason: {response.reason}, Response: {http_body}")
                 if response.status_code == 401:
                     logger.warning(f"[{task_name}] The AppKey or AppSecret maybe inaccurate")
-                    sys.exit(1)
+                    await self.stop()
+
+                    return False
                 return None
             return response.json()
         
@@ -626,14 +628,18 @@ class Dingtalk:
         
         async def main_stream(task_name: str):
             while True:
-                connection = open_connection(task_name)
+                connection = await open_connection(task_name)
                 
                 if not connection:
-                    logger.error(f'[{task_name}] Open websocket connection failed')
-                    logger.warning(f"[{task_name}] Websocket Connection will be reconnected after 5 seconds")
-                    time.sleep(5)
-                    logger.warning(f"[{task_name}] Reconnecting...")
-                    continue
+                    if connection == None:
+                        logger.error(f'[{task_name}] Open websocket connection failed')
+                        logger.warning(f"[{task_name}] Websocket Connection will be reconnected after 5 seconds")
+                        time.sleep(5)
+                        logger.warning(f"[{task_name}] Reconnecting...")
+                        continue
+                    if connection == False:
+                        logger.error(f'[{task_name}] Request connection failed!')
+                    return
                 # logger.info(f'[{task_name}] Connection accessed')
                 
                 uri = '%s?ticket=%s' % (connection['endpoint'], urllib.parse.quote_plus(connection['ticket']))
@@ -665,9 +671,12 @@ class Dingtalk:
         logger.info(f"Create async task [{name}]")
         return task, name
     
-    async def stop(self):
-        while not exit_signal:
-            await asyncio.sleep(1)
+    async def stop(self, waitForSignal=False):
+        if waitForSignal:
+            while not exit_signal:
+                await asyncio.sleep(0.5)
+        else:
+            logger.warning("Stop signal was called!")
         self.log.info("Stopping task loop")
         tasks = asyncio.all_tasks()
         names = ', '.join([x.get_name() for x in self.async_tasks])
