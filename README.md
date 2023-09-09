@@ -39,6 +39,8 @@ At可以传入Member实例（仅限企业内部机器人）与手机号，会自
 
 查看 `Usage.md` 获取基本用法
 
+查看 [GitBook文档](https://dingraia.gitbook.io/dingraia)
+
 由于Cloudflare和L服务器的原因，博客可能无法使用，如需帮助请联系我
 
 ## 安装
