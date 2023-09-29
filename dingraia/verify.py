@@ -1,22 +1,23 @@
 import json
-from typing import Union
-import requests
+from typing import Union, Any
+
 import aiohttp
+import requests
+from aiohttp import ClientResponse
+
 from .element import AccessToken
 
 get_token_url = "https://oapi.dingtalk.com/gettoken"
 
 
-async def url_res(url, method: str = 'GET', header=None, res: str = 'str', **kwargs) -> Union[str, dict]:
+async def url_res(url, method: str = 'GET', headers=None, res: str = 'str', **kwargs) -> Union[ClientResponse, str, dict]:
     async with aiohttp.ClientSession() as session:
-        # logger.info("开始发送")
-        async with session.request(method.upper(), url, headers=header, **kwargs) as _res:
-            # logger.info("等待返回")
+        async with session.request(method.upper(), url, headers=headers, **kwargs) as _res:
             resp = await _res.text()
-            # logger.info(f"已经返回：{resp}")
-    # logger.info("发送完成")
     if res == 'json':
         return json.loads(resp)
+    elif res == 'raw':
+        return _res
     else:
         return resp
 
@@ -28,4 +29,3 @@ def get_token(app_key, app_secret) -> AccessToken:
         return AccessToken(token['access_token'], token['expires_in'])
     else:
         raise ValueError(f"获取Access-Token失败！错误代码：{token['errcode']}，错误信息：{token['errmsg']}")
-

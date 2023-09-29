@@ -1,6 +1,8 @@
-﻿from .element import At
-from typing import Any
+﻿from typing import Any
+
 from typing_extensions import Self
+
+from .element import At
 
 
 class MessageChain:
@@ -10,13 +12,13 @@ class MessageChain:
         self.display = ''.join([str(x) for x in self.mes])
         if at is not None:
             self.mes += [At(at_id) for at_id in at]
-        
+    
     def include(self, __obj: type) -> Self:
         return self.get(__obj)  # __class__([i for i in self.mes if isinstance(i, __obj)])
-        
+    
     def get_first(self, __obj: type) -> Self:
         return self.get(__obj)[0]
-        
+    
     def get(self, element_class: type, count: int = -1) -> list:
         """
         获取消息链中所有特定类型的消息元素
@@ -45,9 +47,6 @@ class MessageChain:
         self.mes += other.mes
         self.display = ''.join([str(x) for x in self.mes])
         return self
-
+    
     def __len__(self) -> int:
         return len(self.mes)
-
-        
-        

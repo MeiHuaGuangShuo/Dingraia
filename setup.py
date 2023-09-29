@@ -1,4 +1,5 @@
 ﻿from setuptools import setup, find_packages
+
 setup(
     name='dingraia',
     version='2.0.1',
@@ -7,6 +8,7 @@ setup(
     author='MeiHuaGuangShuo',
     author_email='meihuaguangshuo@gmail.com',
     description='A Dingtalk robot framework based on Python, supporting http and stream mode.',
+    long_description='A Dingtalk robot framework based on official, easier and advanced to use.',
     install_requires=[
         "loguru",
         "requests",

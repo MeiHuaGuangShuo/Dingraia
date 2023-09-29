@@ -1,3 +1,5 @@
+from typing import List
+
 from ..model import *
 
 
@@ -14,7 +16,6 @@ class CheckUrl(BasicEvent):
 
 
 class CheckIn(BasicEvent):
-    type = "CheckIn"
     
     member: Member
     
@@ -22,7 +23,6 @@ class CheckIn(BasicEvent):
 
 
 class ChatQuit(BasicEvent):
-    type = "ChatQuit"
     
     operator: int
     """对应Operator, 为成员的StaffID"""
@@ -43,8 +43,31 @@ class ChatQuit(BasicEvent):
     """对应操作的唯一ID"""
 
 
+class ChatKick(BasicEvent):
+    
+    operator: int
+    """对应Operator, 为成员的StaffID"""
+    
+    userIds: List[int]
+    """对应userId, 为移除成员的StaffID"""
+    
+    openConversationId: OpenConversationId
+    """对应OpenConversationId, 为对话ID"""
+    
+    cropId: str
+    """对应CorpId"""
+    
+    time: int
+    """TimeStamp*1000"""
+    
+    chatId: str
+    """对应ChatId"""
+    
+    operatorUnionId = str
+    """对应操作的唯一ID"""
+
+
 class GroupNameChange(BasicEvent):
-    type = "GroupNameChange"
     
     operator: int
     """对应Operator, 为成员的StaffID"""

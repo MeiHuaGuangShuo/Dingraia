@@ -1,4 +1,5 @@
 ﻿import time
+
 from loguru import logger
 
 
@@ -9,7 +10,7 @@ class TimeCost:
     
     def __enter__(self):
         self.start_time = time.time()
-        
+    
     def __exit__(self, exc_type, exc_val, exc_tb):
         cost_time = time.time() - self.start_time
         logger.info(f"Time{f'({self.title})' if self.title is not None else ''}: {cost_time}s")

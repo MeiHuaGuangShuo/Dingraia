@@ -1,10 +1,11 @@
-import hashlib
 import copy
-import os
-from typing import Union, BinaryIO
-from ..model import Member
-from pathlib import Path
+import hashlib
 import json
+import os
+from pathlib import Path
+from typing import Union, BinaryIO
+
+from ..model import Member
 
 
 class File:
@@ -15,6 +16,8 @@ class File:
     size: int
     
     fileType: str
+    
+    mediaId = None
     
     def __init__(self, file: Union[Path, BinaryIO, str] = None):
         if file:
@@ -34,7 +37,7 @@ class File:
     @property
     def template(self):
         return {
-            'msgKey' : "sampleImageMsg",
+            'msgKey'  : "sampleImageMsg",
             'msgParam': json.dumps({
                 'mediaId' : self.mediaId,
                 'fileName': self.fileName,
@@ -45,10 +48,9 @@ class File:
     @property
     def data(self):
         raise TypeError("Image cannot be used in Webhook!")
-    
-    
+
+
 class BaseElement:
-    
     type: "BaseElement"
     
     data: dict
@@ -109,7 +111,7 @@ class Image(File):
     @property
     def template(self):
         return {
-            'msgKey' : "sampleImageMsg",
+            'msgKey'  : "sampleImageMsg",
             'msgParam': json.dumps({
                 'photoURL': self.mediaId
             })
@@ -141,7 +143,7 @@ class Audio(File):
     @property
     def template(self):
         return {
-            'msgKey' : "sampleAudio",
+            'msgKey'  : "sampleAudio",
             'msgParam': json.dumps({
                 'mediaId' : self.mediaId,
                 'duration': self.duration
@@ -177,7 +179,7 @@ class Video(File):
     @property
     def template(self):
         return {
-            'msgKey' : "sampleVideo",
+            'msgKey'  : "sampleVideo",
             'msgParam': json.dumps({
                 'duration'    : self.duration,
                 'videoMediaId': self.mediaId,
@@ -211,7 +213,7 @@ class Markdown(BaseElement):
         }
         self.template = {
             "msgKey"  : "sampleMarkdown",
-            "msgParam": self.data["markdown"]
+            "msgParam": json.dumps(self.data["markdown"])
         }
     
     def __str__(self):
@@ -252,7 +254,7 @@ class ActionCard(BaseElement):
             self.data['actionCard'].pop('btnOrientation')
             self.template = {
                 "msgKey"  : "sampleActionCard",
-                "msgParam": self.data["actionCard"]
+                "msgParam": json.dumps(self.data["actionCard"])
             }
         else:
             self.data['actionCard']['btns'] = []
@@ -264,19 +266,19 @@ class ActionCard(BaseElement):
                 if len(self.button) == 2:
                     self.template = {
                         "msgKey"  : "sampleActionCard2",
-                        "msgParam": {
+                        "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
                             "actionTitle1": str(self.button[0][0]),
                             "actionURL1"  : str(self.button[0][1]),
                             "actionTitle2": str(self.button[1][0]),
                             "actionURL2"  : str(self.button[1][1]),
-                        }
+                        })
                     }
                 elif len(self.button) == 3:
                     self.template = {
                         "msgKey"  : "sampleActionCard3",
-                        "msgParam": {
+                        "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
                             "actionTitle1": str(self.button[0][0]),
@@ -285,12 +287,12 @@ class ActionCard(BaseElement):
                             "actionURL2"  : str(self.button[1][1]),
                             "actionTitle3": str(self.button[2][0]),
                             "actionURL3"  : str(self.button[2][1]),
-                        }
+                        })
                     }
                 elif len(self.button) == 4:
                     self.template = {
                         "msgKey"  : "sampleActionCard4",
-                        "msgParam": {
+                        "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
                             "actionTitle1": str(self.button[0][0]),
@@ -301,12 +303,12 @@ class ActionCard(BaseElement):
                             "actionURL3"  : str(self.button[2][1]),
                             "actionTitle4": str(self.button[3][0]),
                             "actionURL4"  : str(self.button[3][1]),
-                        }
+                        })
                     }
                 elif len(self.button) == 5:
                     self.template = {
                         "msgKey"  : "sampleActionCard5",
-                        "msgParam": {
+                        "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
                             "actionTitle1": str(self.button[0][0]),
@@ -319,19 +321,19 @@ class ActionCard(BaseElement):
                             "actionURL4"  : str(self.button[3][1]),
                             "actionTitle5": str(self.button[4][0]),
                             "actionURL5"  : str(self.button[4][1]),
-                        }
+                        })
                     }
             else:
                 self.template = {
                     "msgKey"  : "sampleActionCard6",
-                    "msgParam": {
+                    "msgParam": json.dumps({
                         "title"       : str(self.title),
                         "text"        : str(self.text),
                         "buttonTitle1": str(self.button[0][0]),
                         "buttonURL1"  : str(self.button[0][1]),
                         "buttonTitle2": str(self.button[1][0]),
                         "buttonURL2"  : str(self.button[1][1]),
-                    }
+                    })
                 }
     
     def __str__(self):

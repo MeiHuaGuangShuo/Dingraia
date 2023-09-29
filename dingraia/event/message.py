@@ -11,7 +11,6 @@ class BasicMessage:
 
 
 class GroupMessage(BasicMessage):
-    
     type = "GroupMessage"
     
     message_chain: MessageChain
@@ -21,4 +20,3 @@ class GroupMessage(BasicMessage):
     group: Group
     
     bot: Bot
-    

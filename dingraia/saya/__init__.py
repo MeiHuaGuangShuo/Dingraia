@@ -1,9 +1,11 @@
 import sys
-from typing import Union, Callable
 from contextlib import contextmanager
+from typing import Union, Callable
+import os
 from loguru import logger
-from .context import channel_instance, saya_instance
+
 from .channel import Channel
+from .context import channel_instance, saya_instance
 
 
 class Saya:
@@ -31,6 +33,8 @@ class Saya:
             return saya_instance.get()
     
     def require(self, module_name: str):
+        if os.getenv('NoImportModule'):
+            return
         if module_name.endswith('.py'):
             module_name = module_name[:-3]
         logger.debug(f"正在载入模块 {module_name}")
@@ -38,7 +42,7 @@ class Saya:
         self.channels[module_name] = module
         self.mirrors[module] = module_name
         logger.info(f"模块 {module_name} 载入完成")
-     
+    
     def uninstall_channel(self, module_name: Union[str, Callable]):
         if module_name in self.channels or module_name in self.channels.values():
             if module_name in self.mirrors:
@@ -57,5 +61,3 @@ class Saya:
                         del sys.modules[module_name]
         else:
             raise KeyError(f"模块 {module_name} 没有被载入！")
-
-

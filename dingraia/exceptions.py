@@ -12,3 +12,7 @@ class UploadFileError(Exception):
 
 class UploadFileSizeError(Exception):
     pass
+
+
+class SystemError(Exception):
+    pass

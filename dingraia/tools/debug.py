@@ -1,8 +1,8 @@
-from typing import Any
-import sys
-from loguru import logger
 import inspect
+import sys
+from typing import Any
 
+from loguru import logger
 
 logger.remove()
 logger.add(sys.stdout, filter=lambda record: record['extra'].get("name") != "debug_log", enqueue=True)
@@ -34,7 +34,9 @@ class delog:
         if lies[0] in cls.forbidden_modules:
             return
         if cls.is_debug and (no >= cls.no or access):
-            debug_logger.opt(colors=True).info(f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(__message).replace("<", "\\<"), *args, **kwargs)
+            debug_logger.opt(colors=True).info(
+                f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(
+                    __message).replace("<", "\\<"), *args, **kwargs)
     
     @classmethod
     def debug(cls, __message, *args: Any, no: int = 60, **kwargs: Any):
@@ -48,7 +50,9 @@ class delog:
         if lies[0] in cls.forbidden_modules:
             return
         if cls.is_debug and (no >= cls.no or access):
-            debug_logger.opt(colors=True).debug(f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(__message).replace("<", "\\<"), *args, **kwargs)
+            debug_logger.opt(colors=True).debug(
+                f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(
+                    __message).replace("<", "\\<"), *args, **kwargs)
     
     @classmethod
     def warning(cls, __message, *args: Any, no: int = 60, **kwargs: Any):
@@ -62,7 +66,9 @@ class delog:
         if lies[0] in cls.forbidden_modules:
             return
         if cls.is_debug and (no >= cls.no or access):
-            debug_logger.opt(colors=True).warning(f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(__message).replace("<", "\\<"), *args, **kwargs)
+            debug_logger.opt(colors=True).warning(
+                f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(
+                    __message).replace("<", "\\<"), *args, **kwargs)
     
     @classmethod
     def success(cls, __message, *args: Any, no: int = 60, **kwargs: Any):
@@ -76,7 +82,9 @@ class delog:
         if lies[0] in cls.forbidden_modules:
             return
         if cls.is_debug and (no >= cls.no or access):
-            debug_logger.opt(colors=True).success(f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(__message).replace("<", "\\<"), *args, **kwargs)
+            debug_logger.opt(colors=True).success(
+                f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(
+                    __message).replace("<", "\\<"), *args, **kwargs)
     
     @classmethod
     def error(cls, __message, *args: Any, no: int = 60, **kwargs: Any):
@@ -90,7 +98,9 @@ class delog:
         if lies[0] in cls.forbidden_modules:
             return
         if cls.is_debug and (no >= cls.no or access):
-            debug_logger.opt(colors=True).error(f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(__message).replace("<", "\\<"), *args, **kwargs)
+            debug_logger.opt(colors=True).error(
+                f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(
+                    __message).replace("<", "\\<"), *args, **kwargs)
     
     @classmethod
     def exception(cls, __message, *args: Any, no: int = 60, **kwargs: Any):
@@ -104,7 +114,9 @@ class delog:
         if lies[0] in cls.forbidden_modules:
             return
         if cls.is_debug and (no >= cls.no or access):
-            debug_logger.opt(colors=True).exception(f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(__message).replace("<", "\\<"), *args, **kwargs)
+            debug_logger.opt(colors=True).exception(
+                f"<cyan>{lies[0]}</><red>:</><cyan>{lies[1]}</><red>:</><cyan>{lies[2]}</> <red>-</> " + str(
+                    __message).replace("<", "\\<"), *args, **kwargs)
     
     @classmethod
     def start(cls):

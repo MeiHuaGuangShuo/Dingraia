@@ -1,8 +1,9 @@
 你好！这里是详细的使用方法，在阅读之前，建议查看README.md
 
-
 # 示例启动文件
+
 首先，这里是一个2.0.0的启动文件
+
 ```python
 import pkgutil
 from dingraia.config import Config, Bot, CallBack, Stream
@@ -51,18 +52,23 @@ if __name__ == '__main__':
 # 启动方法
 
 ## 直接启动
+
 ### Windows(或使用pkg安装的Linux)
+
 ```shell
 python main_example.py
 ```
+
 ### Linux(使用apt安装)
+
 ```shell
 python3 main_example.py
 ```
 
-
 # 模块文件
+
 请在启动文件的指定位置填写你的模块文件夹
+
 ```python
  7 | # 可修改区域 ↓
 >8<| module_dir = "Dir"  # 如果需要按模块导入，则需要填写

@@ -1,4 +1,5 @@
 import hashlib
+
 from ..element import OpenConversationId
 
 
@@ -50,7 +51,7 @@ class Group:
 class Member:
     
     def __init__(self, id: str = None,
-                 staffid: int = None,
+                 staffid: str = None,
                  name: str = None,
                  group: Group = None,
                  admin: bool = None,
@@ -88,5 +89,3 @@ class Bot:
     
     def __int__(self) -> int:
         return self.id
-
-

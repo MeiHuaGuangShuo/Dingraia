@@ -1,10 +1,12 @@
 import asyncio
-import itertools
-from typing import Union
-import inspect
 import functools
-from loguru import logger
+import inspect
+import itertools
 from concurrent.futures import ThreadPoolExecutor
+from typing import Union
+
+from loguru import logger
+
 from .builtins.broadcast.schema import ListenerSchema
 from .context import channel_instance
 
@@ -58,7 +60,7 @@ class Channel:
                 if async_tasks:
                     await asyncio.gather(*async_tasks)
                     async_tasks.clear()
-                
+    
     def set_channel(self):
         channel_instance.set(self)
     

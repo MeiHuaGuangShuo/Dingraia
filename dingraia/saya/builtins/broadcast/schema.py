@@ -1,6 +1,5 @@
-
 class ListenerSchema:
-
+    
     def __init__(
             self,
             listening_events: list,
@@ -22,4 +21,3 @@ class ListenerSchema:
         self.decorators = decorators
         self.priority = priority
         self.extra_priorities = extra_priorities
-        

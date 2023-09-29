@@ -11,4 +11,3 @@ class MessageEvent:
         self.message = message
         self.group = group
         self.member = member
-        

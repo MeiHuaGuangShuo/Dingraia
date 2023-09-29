@@ -9,8 +9,10 @@ import struct
 import time
 import urllib.parse
 from random import choice
+
 from Crypto.Cipher import AES
 from loguru import logger
+
 from dingraia.tools.debug import delog
 
 
@@ -110,7 +112,7 @@ class DingCallbackCrypto3:
         v = msg_encrypt
         signList = ''.join(sorted([nonce, timestamp, token, v]))
         return hashlib.sha1(signList.encode()).hexdigest()
-
+    
     @staticmethod
     def length(content):
         """
@@ -120,7 +122,7 @@ class DingCallbackCrypto3:
         """
         l = len(content)
         return struct.pack('>l', l)
-
+    
     @staticmethod
     def pks7encode(content):
         """
@@ -135,7 +137,7 @@ class DingCallbackCrypto3:
             output.write('%02x' % val)
         # print "pks7encode",content,"pks7encode", val, "pks7encode", output.getvalue()
         return content + binascii.unhexlify(output.getvalue()).decode()
-
+    
     @staticmethod
     def pks7decode(content):
         nl = len(content)
