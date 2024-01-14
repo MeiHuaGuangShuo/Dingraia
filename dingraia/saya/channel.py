@@ -13,12 +13,13 @@ from .context import channel_instance
 
 class Channel:
     reg_event = {}
+    pool: ThreadPoolExecutor = None
     
     def __init__(self) -> None:
         pass
     
     def use(self, ListenEvent: Union[list, ListenerSchema]):
-        if type(ListenEvent) == ListenerSchema:
+        if isinstance(ListenEvent, ListenerSchema):
             ListenEvent = ListenEvent.listening_events
         
         def wrapper(func):
@@ -36,30 +37,31 @@ class Channel:
         
         return wrapper
     
-    async def radio(self, RadioEvent, *args):
+    async def radio(self, RadioEvent, *args, async_await: bool = False):
         # logger.debug(f"{type(RadioEvent) in self.reg_event} {RadioEvent} {type(RadioEvent)} {self.reg_event}")
-        if type(RadioEvent) != type:
+        if type(RadioEvent) is not type:
             RadioEvent = type(RadioEvent)
         if RadioEvent in self.reg_event:
             modules = list(itertools.chain(*self.reg_event[RadioEvent].values()))
             async_tasks = []
             loop = asyncio.get_event_loop()
-            with ThreadPoolExecutor() as pool:
-                for f in modules:
-                    send = {}
-                    sig = inspect.signature(f)
-                    params = sig.parameters
-                    for name, param in params.items():
-                        for typ in args:
-                            if isinstance(typ, param.annotation):
-                                send[name] = typ
-                    if inspect.iscoroutinefunction(f):
-                        async_tasks.append(loop.create_task(logger.catch(f)(**send)))
-                    else:
-                        async_tasks.append(loop.run_in_executor(pool, functools.partial(logger.catch(f), **send)))
-                if async_tasks:
-                    await asyncio.gather(*async_tasks)
-                    async_tasks.clear()
+            if not self.pool:
+                self.pool = ThreadPoolExecutor()
+            for f in modules:
+                send = {}
+                sig = inspect.signature(f)
+                params = sig.parameters
+                for name, param in params.items():
+                    for typ in args:
+                        if isinstance(typ, param.annotation):
+                            send[name] = typ
+                if inspect.iscoroutinefunction(f):
+                    async_tasks.append(loop.create_task(logger.catch(f)(**send)))
+                else:
+                    async_tasks.append(loop.run_in_executor(self.pool, functools.partial(logger.catch(f), **send)))
+            if async_tasks and async_await:
+                await asyncio.gather(*async_tasks)
+                async_tasks.clear()
     
     def set_channel(self):
         channel_instance.set(self)

@@ -23,9 +23,4 @@ async def url_res(url, method: str = 'GET', headers=None, res: str = 'str', **kw
 
 
 def get_token(app_key, app_secret) -> AccessToken:
-    _url = get_token_url + f"?appkey={app_key}&appsecret={app_secret}"
-    token = requests.get(_url).json()
-    if not token['errcode']:
-        return AccessToken(token['access_token'], token['expires_in'])
-    else:
-        raise ValueError(f"获取Access-Token失败！错误代码：{token['errcode']}，错误信息：{token['errmsg']}")
+    return AccessToken(AppKey=app_key, AppSecret=app_secret)

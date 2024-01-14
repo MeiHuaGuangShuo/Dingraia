@@ -7,10 +7,13 @@ import json
 import string
 import struct
 import time
+import random
 import urllib.parse
 from random import choice
 
 from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad
 from loguru import logger
 
 from dingraia.tools.debug import delog
@@ -28,13 +31,22 @@ def decrypt(encrypt_data, aes_key):
     return json.loads(msg.decode())
 
 
-def encrypt(data, Token, AES_KEY, CropID):
-    dingCrypto = DingCallbackCrypto3(Token, AES_KEY, CropID)
-    return dingCrypto.getEncryptedMap(data)
+def encrypt(data, token, aesKey, appKey):
+    aesKey = base64.b64decode(aesKey + '=')
+    timestamp = str(int(time.time()*1000))
+    nonce = ''.join(random.sample('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 16))
+    msg_len = struct.pack('>I', len(data))
+    data_to_encrypt = nonce.encode('utf-8') + msg_len + (data + appKey).encode('utf-8')
+    iv = aesKey[:16]
+    cipher = AES.new(aesKey, AES.MODE_CBC, iv)
+    encrypted_data = cipher.encrypt(pad(data_to_encrypt, AES.block_size))
+    encrypted_msg = base64.b64encode(encrypted_data).decode('utf-8')
+    signature = hashlib.sha1(''.join(sorted([nonce, timestamp, token, encrypted_msg])).encode()).hexdigest()
+    return {'msg_signature': signature, 'encrypt': encrypted_msg, 'timeStamp': timestamp, 'nonce': nonce}
 
 
-def sign_js(Token, AES_KEY, CropID):
-    return encrypt("success", Token, AES_KEY, CropID)
+def sign_js(Token, AES_KEY, AppKey):
+    return encrypt("success", Token, AES_KEY, AppKey)
 
 
 @logger.catch

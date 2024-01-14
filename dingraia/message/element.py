@@ -19,6 +19,8 @@ class File:
     
     mediaId = None
     
+    downloadCode: str = None
+    
     def __init__(self, file: Union[Path, BinaryIO, str] = None):
         if file:
             if not isinstance(file, BinaryIO):
@@ -48,6 +50,9 @@ class File:
     @property
     def data(self):
         raise TypeError("Image cannot be used in Webhook!")
+    
+    def __str__(self):
+        return f"[文件]({self.downloadCode} {self.mediaId})"
 
 
 class BaseElement:
@@ -120,6 +125,9 @@ class Image(File):
     @property
     def data(self):
         raise TypeError("Image cannot be used in Webhook!")
+    
+    def __str__(self):
+        return f"[图片]({self.downloadCode} {self.mediaId})"
 
 
 class Audio(File):
@@ -153,6 +161,9 @@ class Audio(File):
     @property
     def data(self):
         raise TypeError("Audio cannot be used in Webhook!")
+    
+    def __str__(self):
+        return f"[音频]({self.downloadCode} {self.mediaId})"
 
 
 class Video(File):
@@ -191,6 +202,9 @@ class Video(File):
     @property
     def data(self):
         raise TypeError("Video cannot be used in Webhook!")
+    
+    def __str__(self):
+        return f"[视频]({self.downloadCode} {self.mediaId})"
 
 
 class Markdown(BaseElement):
@@ -368,15 +382,18 @@ class FeedCard(BaseElement):
 
 class At:
     
-    def __init__(self, target: Union[int, Member], display: str = ""):
-        if type(target) == Member:
+    def __init__(self, target: Union[tuple, Member], display: str = ""):
+        if isinstance(target, Member):
             self.id = (int(hashlib.sha1(str(target.id)[str(target.id).rfind("$"):].encode('utf-8')).hexdigest(), 16)) % \
                       (10 ** 10) + 1000
             self.target = str(target.staffid)
         else:
-            self.id = (int(hashlib.sha1(str(target)[str(target).rfind("$"):].encode('utf-8')).hexdigest(), 16)) % \
-                      (10 ** 10) + 1000
-            self.target = target
+            if isinstance(target, tuple):
+                self.id = (int(hashlib.sha1(str(target[0])[str(target[0]).rfind("$"):].encode('utf-8')).hexdigest(), 16)) % \
+                          (10 ** 10) + 1000
+                self.target = target[1]
+            else:
+                self.id = self.target = str(target)
         self.display = display if display else self.target
         self.data = {"atUserIds": [str(self.target)]} if len(str(self.target)) != 11 else {
             "atMobiles": [str(self.target)]}

@@ -2,7 +2,7 @@
 
 setup(
     name='dingraia',
-    version='2.0.2',
+    version='2.0.3',
     packages=find_packages(),
     url='https://github.com/MeiHuaGuangShuo/Dingraia',
     author='MeiHuaGuangShuo',

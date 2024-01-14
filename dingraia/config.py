@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 
 class Bot:
@@ -14,11 +14,11 @@ class Bot:
 
 class CallBack:
     
-    def __init__(self, AesKey: str, Token: str, CropId: str):
+    def __init__(self, AesKey: str, Token: str, AppKey: str):
         self.AesKey = AesKey
         self.Token = Token
-        self.CropId = CropId
-        self.elements = [self.AesKey, self.Token, self.CropId]
+        self.AppKey = AppKey
+        self.elements = [self.AesKey, self.Token, self.AppKey]
     
     def __getitem__(self, item):
         return self.elements[item]
@@ -39,10 +39,24 @@ class Config:
     def __init__(self,
                  event_callback: CallBack = None,
                  bot: Bot = None,
-                 stream: List[Stream] = None
+                 stream: List[Stream] = None,
+                 autoBotConfig: bool = True
                  ):
+        """初始化Config
+        
+        Notes:
+            在 `autoBotConfig` 启用且 `Stream` 启用时会自动替换 `Bot` 的值
+        
+        Args:
+            event_callback:
+            bot:
+            stream:
+            autoBotConfig: 是否自动替换Bot的值
+        """
         self.event_callback = event_callback
-        self.bot = bot
-        self.stream = stream
+        self.bot: Union[Bot, None] = bot
+        self.stream: Union[List[Stream], None] = stream
         if not isinstance(self.stream, list):
             self.stream = [self.stream]
+        if len(self.stream) == 1 and autoBotConfig:
+            self.bot = Bot(stream[0].AppKey, stream[0].AppSecret, stream[0].AppKey)

@@ -11,6 +11,7 @@ def matcher(key: str, *__dict: dict):
 def callback_handler(event_body: dict, raw_body=None):
     if raw_body is None:
         raw_body = {}
+    event = None
     if 'EventType' in event_body:
         if event_body['EventType'] == "ChatQuit":
             event = ChatQuit()
@@ -23,7 +24,6 @@ def callback_handler(event_body: dict, raw_body=None):
             event.cropId = matcher('CropId', event_body)
             event.dec_mes = event_body
             event.raw_mes = raw_body
-            return event
         elif event_body['EventType'] == 'chat_remove_member':
             event = ChatKick()
             event.time = matcher('Timestamp', event_body)
@@ -36,7 +36,6 @@ def callback_handler(event_body: dict, raw_body=None):
             event.cropId = matcher('CropId', event_body)
             event.dec_mes = event_body
             event.raw_mes = raw_body
-            return event
         elif event_body['EventType'] == 'chat_update_title':
             event = GroupNameChange()
             event.time = matcher('Timestamp', event_body)
@@ -46,10 +45,13 @@ def callback_handler(event_body: dict, raw_body=None):
             event.title = matcher('Title', event_body)
             event.openConversationId = OpenConversationId(
                 matcher('OpenConversationId', event_body), event.title)
+            event.cropId = matcher('CropId', event_body)
             event.dec_mes = event_body
             event.raw_mes = raw_body
-            return event
-    event = BasicEvent()
-    event.dec_mes = event_body
-    event.raw_mes = raw_body
-    return event
+    if not event:
+        event = BasicEvent()
+        event.dec_mes = event_body
+        event.raw_mes = raw_body
+        return event
+    bsEvent = BasicEvent(raw_body, event_body)
+    return [event, bsEvent]
