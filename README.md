@@ -1,4 +1,4 @@
-此文档最后更新于23/11/18，V2.0.3
+此文档最后更新于24/1/14 v2.0.3
 
 # 这是什么？
 
@@ -23,7 +23,7 @@ At可以传入Member实例（仅限企业内部机器人）与手机号，会自
 
 **本项目基于企业内部机器人开发，使用企业内部机器人以获得更好的体验**
 
-**普通Webhook机器人已经于2023年9月1日停用，目前不再支持**
+**普通Webhook机器人已经于2023年9月1日停用，目前不再支持（其他解决方法看下方 _发送消息_ 部分）**
 
 **强烈推荐Stream模式**，安全，快速，随处可用
 
@@ -100,19 +100,42 @@ def example(group: Group):  # 此处暂不支持传入机器人实例
 ## 发送消息
 
 ```python
-app = Dingtalk()
-app.send_message(group, MessageChain("Message"))  # 当然也可以传入任意对象，前提是支持str方法
-# 从 element 导入元素即可发送 MarkDown, ActionCard等支持的消息卡片，如
+await app.send_message(Target, MessageChain("Message"))  # 当然也可以传入任意对象，前提是支持str方法
+# 从 element 导入元素即可发送 MarkDown, ActionCard等支持的消息卡片
+# Target 可以是 Group, Member, OpenConversationId, Webhook, str(链接)
+# 程序会自动判断方法进行发送
 ```
 
 ## 发送文件
 
 ```python
-app = Dingtalk()
-app.send_message(group, Image('example.png'))
+await app.send_message(group, Image('example.png'))
 ```
 
+**注意：请不要使用** 
+`MessageChain(Image(...))` 
+**的方法来发送文件，否则会发送文字消息**
+
+## 撤回消息
+```python
+res = await app.send_message(Target, mes)
+# Target 必须是 OpenConversationId ，即只有通过API发送的文件才支持撤回
+await app.recall_message(res)
+```
+
+若在同步函数中发送消息，可以使用 `app.sendMessage` 方法，参数与 `app.send_message` 一致
+
 注意：机器人的发送提示实际是在准备发送时提示的，不一定代表确实发送成功
+
+# 在同步函数中执行异步函数
+
+使用如下代码即可
+```python
+from  dingraia.lazy import *
+@channel.use(...)
+def sync_example(app: Dingtalk):
+    app.run_coroutine(app.mute_all(...)) # 使用的是app.loop执行的
+```
 
 # 兼容度
 
