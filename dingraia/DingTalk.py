@@ -116,7 +116,7 @@ class Dingtalk:
             else:
                 send_data['media_id'] = msg.mediaId
             if isinstance(target, Group):
-                target = target.conversationId
+                target = target.openConversationId
         else:
             if isinstance(target, OpenConversationId) or isinstance(target, Member):
                 send_data = {
@@ -134,7 +134,7 @@ class Dingtalk:
                 }
             
             send_data['robotCode'] = self.config.bot.robotCode
-            send_data['openConversationId'] = target.openConversationId
+            send_data['openConversationId'] = str(target.openConversationId)
             headers['x-acs-dingtalk-access-token'] = self.access_token
         if isinstance(msg, MessageChain):
             if ats := msg.include(At):
@@ -389,7 +389,7 @@ class Dingtalk:
             data["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT"}
         else:
             if isinstance(target, Group):
-                target = target.conversationId
+                target = target.openConversationId
             openConversationId = str(target)
             body['openSpaceId'] = f"dtv1.card//IM_GROUP.{openConversationId}"
             body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}
@@ -1755,7 +1755,7 @@ class Dingtalk:
     @staticmethod
     def _openConversationId2str(openConversationId: Union[OpenConversationId, Group, str]) -> str:
         if isinstance(openConversationId, Group):
-            openConversationId = openConversationId.conversationId
+            openConversationId = openConversationId.openConversationId
         else:
             openConversationId = str(openConversationId)
         return openConversationId
