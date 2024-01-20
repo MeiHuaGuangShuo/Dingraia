@@ -38,7 +38,7 @@ class Group:
         """群聊的真实名称"""
         self.webhook = Webhook(send_url, limit_time)
         """群聊的临时Webhook地址，含有URL和过期时间戳"""
-        self.conversationId: OpenConversationId = OpenConversationId(conversationId, self.name, self.id)
+        self.openConversationId: OpenConversationId = OpenConversationId(conversationId, self.name, self.id)
         """对话ID"""
     
     def __int__(self) -> int:
