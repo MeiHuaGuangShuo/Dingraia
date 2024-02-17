@@ -14,8 +14,7 @@ from typing import Dict, Coroutine, Literal
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse
-from loguru import logger
-
+from .log import logger
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream
@@ -810,7 +809,7 @@ class Dingtalk:
         if title is not None:
             data['title'] = str(title)
         if owner_user_id is not None:
-            data['owner_user_id'] = str(owner_user_id)
+            data['owner_user_id'] = self._staffId2str(owner_user_id)
         if icon is not None:
             data['icon'] = self._file2mediaId(icon)
         if mention_all_authority is not None:
@@ -865,6 +864,18 @@ class Dingtalk:
 
         """
         return await self.update_group(openConversationId, title=title)
+    
+    async def change_group_owner(self, openConversationId: Union[OpenConversationId, Group, str], userStaffId: Union[Member, str]):
+        """
+        
+        Args:
+            openConversationId:
+            userStaffId:
+
+        Returns:
+
+        """
+        return await self.update_group(openConversationId, owner_user_id=userStaffId)
     
     async def mute_all(self, openConversationId: Union[OpenConversationId, Group, str]):
         return await self.update_group(openConversationId, chat_banned_type=True)
@@ -936,7 +947,7 @@ class Dingtalk:
             self,
             openConversationId: Union[OpenConversationId, Group, str],
             memberStaffIds: Union[Member, str, List[Union[Member, str]]],
-            muteTime: int = 60
+            muteTime: int = 0
     ):
         """禁言一个成员
         
