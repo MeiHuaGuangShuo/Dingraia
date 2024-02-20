@@ -251,6 +251,7 @@ class Dingtalk:
             inThreadTime: 是否不等待撤回
 
         Returns:
+            text
 
         """
         
@@ -331,6 +332,7 @@ class Dingtalk:
             "userIdType"           : 1,
             "callbackType"         : "STREAM"
         }
+        raise ValueError("未完成")
     
     async def send_markdown_card(
             self,
