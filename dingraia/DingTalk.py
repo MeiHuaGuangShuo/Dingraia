@@ -288,7 +288,7 @@ class Dingtalk:
             return self.loop.create_task(
                 _run(message, openConversationId, processQueryKeys, robotCode, access_token, inThreadTime))
     
-    async def send_card(
+    async def _send_card(
             self,
             cardTemplateId,
             outTrackId,
@@ -334,6 +334,44 @@ class Dingtalk:
         }
         raise ValueError("未完成")
     
+    async def send_card(
+            self,
+            target: Union[OpenConversationId, Group, Member],
+            cardData: dict,
+            outTrackId: str = str(uuid.uuid1()),
+    ) -> str:
+        """
+        
+        Args:
+            target: 发送的目标地址
+            cardData: 卡片内容
+            outTrackId: 自定义追溯ID, 默认使用UUID1生成
+
+        Returns:
+            str: outTrackId
+
+        """
+        resp = await self.api_request.post('/v1.0/card/instances', json=cardData)
+        if not resp.ok:
+            raise DingtalkAPIError(f"Error while create the card.Code={resp.status} text={await resp.text()}")
+        body = {
+            "outTrackId": outTrackId,
+            "userIdType": 1,
+        }
+        if isinstance(target, Member):
+            body['openSpaceId'] = f"dtv1.card//IM_ROBOT.{target.staffid}"
+            cardData["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT"}
+        else:
+            if isinstance(target, Group):
+                target = target.openConversationId
+            openConversationId = str(target)
+            body['openSpaceId'] = f"dtv1.card//IM_GROUP.{openConversationId}"
+            body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}
+        resp = await self.api_request.post('/v1.0/card/instances/deliver', json=body)
+        if not resp.ok:
+            raise DingtalkAPIError(f"Error while deliver the card.Code={resp.status} text={await resp.text()}")
+        return outTrackId
+    
     async def send_markdown_card(
             self,
             target: Union[OpenConversationId, Group, Member],
@@ -378,26 +416,7 @@ class Dingtalk:
             "imRobotOpenSpaceModel": {"supportForward": supportForward},
             "callbackType"         : "STREAM"
         }
-        resp = await self.api_request.post('/v1.0/card/instances', json=data)
-        if not resp.ok:
-            raise DingtalkAPIError(f"Error while create the card.Code={resp.status} text={await resp.text()}")
-        body = {
-            "outTrackId": outTrackId,
-            "userIdType": 1,
-        }
-        if isinstance(target, Member):
-            body['openSpaceId'] = f"dtv1.card//IM_ROBOT.{target.staffid}"
-            data["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT"}
-        else:
-            if isinstance(target, Group):
-                target = target.openConversationId
-            openConversationId = str(target)
-            body['openSpaceId'] = f"dtv1.card//IM_GROUP.{openConversationId}"
-            body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}
-        resp = await self.api_request.post('/v1.0/card/instances/deliver', json=body)
-        if not resp.ok:
-            raise DingtalkAPIError(f"Error while deliver the card.Code={resp.status} text={await resp.text()}")
-        return outTrackId
+        return await self.send_card(target=target, cardData=data, outTrackId=outTrackId)
     
     async def update_card(self, outTrackId, cardParamData):
         if isinstance(cardParamData, Markdown):
@@ -1084,16 +1103,16 @@ class Dingtalk:
             f = file.file
             res = file
         if file_type == "image":
-            if size > 20 * 1024 * 1024:
+            if size > 20 * MiB:
                 raise UploadFileSizeError("Image file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
         elif file_type == "voice":
-            if size > 2 * 1024 * 1024:
+            if size > 2 * MiB:
                 raise UploadFileSizeError("Voice file is limited under 2M, but %sM given!" % (size / (1024 ** 2)))
         elif file_type == "video":
-            if size > 20 * 1024 * 1024:
+            if size > 20 * MiB:
                 raise UploadFileSizeError("Video file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
         else:
-            if size > 20 * 1024 * 1024:
+            if size > 20 * MiB:
                 raise UploadFileSizeError("Normal file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
         if not access_token:
             access_token = self.access_token
@@ -1368,25 +1387,37 @@ class Dingtalk:
             if headers is None:
                 headers = {}
             headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
-            return await self.clientSession.get(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            resp = await self.clientSession.get(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.after_request(resp)
+            return resp
         
         async def post(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             if headers is None:
                 headers = {}
             headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
-            return await self.clientSession.post(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            resp = await self.clientSession.post(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.after_request(resp)
+            return resp
         
         async def put(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             if headers is None:
                 headers = {}
             headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
-            return await self.clientSession.put(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            resp = await self.clientSession.put(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.after_request(resp)
+            return resp
         
         async def delete(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             if headers is None:
                 headers = {}
             headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
-            return await self.clientSession.delete(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            resp = await self.clientSession.delete(self._url_resolve(urlPath), headers=headers, **kwargs)
+            self.after_request(resp)
+            return resp
         
         @staticmethod
         def _url_resolve(urlPath: str):
@@ -1394,6 +1425,15 @@ class Dingtalk:
                 urlPath = '/' + urlPath
             url = ("https://api.dingtalk.com" + urlPath) if "https" not in urlPath else urlPath
             return url
+
+        @staticmethod
+        def before_request(urlPath: str, headers=None, **kwargs):
+            ...
+
+        @staticmethod
+        def after_request(response: ClientResponse):
+            if response.ok:
+                ...
     
     class _oapi_request:
         
@@ -1402,16 +1442,28 @@ class Dingtalk:
             self.access_token = access_token
         
         async def get(self, urlPath: str, **kwargs) -> ClientResponse:
-            return await self.clientSession.get(self._url_resolve(urlPath), **kwargs)
+            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            resp = await self.clientSession.get(self._url_resolve(urlPath), **kwargs)
+            self.after_request(resp)
+            return resp
         
         async def post(self, urlPath, **kwargs) -> ClientResponse:
-            return await self.clientSession.post(self._url_resolve(urlPath), **kwargs)
+            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            resp = await self.clientSession.post(self._url_resolve(urlPath), **kwargs)
+            self.after_request(resp)
+            return resp
         
         async def put(self, urlPath, **kwargs) -> ClientResponse:
-            return await self.clientSession.put(self._url_resolve(urlPath), **kwargs)
+            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            resp = await self.clientSession.put(self._url_resolve(urlPath), **kwargs)
+            self.after_request(resp)
+            return resp
         
         async def delete(self, urlPath, **kwargs) -> ClientResponse:
-            return await self.clientSession.delete(self._url_resolve(urlPath), **kwargs)
+            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            resp = await self.clientSession.delete(self._url_resolve(urlPath), **kwargs)
+            self.after_request(resp)
+            return resp
         
         def _url_resolve(self, urlPath: str):
             if "http" not in urlPath and not urlPath.startswith('/'):
@@ -1422,6 +1474,15 @@ class Dingtalk:
             elif '?' in url and 'access_token' not in url:
                 url += f"&access_token={self.access_token.safe()}"
             return url
+
+        @staticmethod
+        def before_request(urlPath: str, **kwargs):
+            ...
+
+        @staticmethod
+        def after_request(response: ClientResponse):
+            if response.ok:
+                ...
     
     def start(self, flask_app: "flask.Flask" = None, **kwargs):
         """
