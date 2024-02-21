@@ -1384,47 +1384,46 @@ class Dingtalk:
             self.access_token = access_token
         
         async def get(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
-            if headers is None:
-                headers = {}
-            headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
+            headers = self._header_resolve(headers)
             self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.get(self._url_resolve(urlPath), headers=headers, **kwargs)
             self.after_request(resp)
             return resp
         
         async def post(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
-            if headers is None:
-                headers = {}
-            headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
+            headers = self._header_resolve(headers)
             self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.post(self._url_resolve(urlPath), headers=headers, **kwargs)
             self.after_request(resp)
             return resp
         
         async def put(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
-            if headers is None:
-                headers = {}
-            headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
+            headers = self._header_resolve(headers)
             self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.put(self._url_resolve(urlPath), headers=headers, **kwargs)
             self.after_request(resp)
             return resp
         
         async def delete(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
-            if headers is None:
-                headers = {}
-            headers.update({'x-acs-dingtalk-access-token': self.access_token.safe()})
+            headers = self._header_resolve(headers)
             self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.delete(self._url_resolve(urlPath), headers=headers, **kwargs)
             self.after_request(resp)
             return resp
         
         @staticmethod
-        def _url_resolve(urlPath: str):
+        def _url_resolve(urlPath: str) -> str:
             if "http" not in urlPath and not urlPath.startswith('/'):
                 urlPath = '/' + urlPath
             url = ("https://api.dingtalk.com" + urlPath) if "https" not in urlPath else urlPath
             return url
+        
+        def _header_resolve(self, headers: dict) -> dict:
+            if headers is None:
+                headers = {}
+            if "x-acs-dingtalk-access-token" not in headers:
+                headers["x-acs-dingtalk-access-token"] = self.access_token.safe()
+            return headers
 
         @staticmethod
         def before_request(urlPath: str, headers=None, **kwargs):
