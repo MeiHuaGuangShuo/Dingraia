@@ -8,28 +8,23 @@ class Cache:
     def __init__(self):
         pass
 
-    @classmethod
-    def connect(cls, databaseName: str = "Dingraia_cache.db"):
-        cls.db = sqlite3.connect(databaseName)
-        cls.cursor = cls.db.cursor()
+    def connect(self, databaseName: str = "Dingraia_cache.db"):
+        self.db = sqlite3.connect(databaseName)
+        self.cursor = self.db.cursor()
         
-    @classmethod
-    def execute(cls, command, result=False):
-        cls.cursor.execute(command)
+    def execute(self, command, result=False):
+        self.cursor.execute(command)
         if result:
-            return cls.cursor.fetchall()
+            return self.cursor.fetchall()
         
-    @classmethod
-    def get_tables(cls):
-        res = cls.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", True)
+    def get_tables(self):
+        res = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", True)
         return [x[0] for x in res]
     
-    @classmethod
-    def get_table(cls, table):
-        return cls.execute(f"SELECT * FROM {table};", True)
+    def get_table(self, table):
+        return self.execute(f"SELECT * FROM {table};", True)
     
-    @classmethod
-    def create_table(cls, table_name, keys):
+    def create_table(self, table_name, keys):
         def type_transformer(typ: type):
             if typ == str:
                 return "TEXT"
@@ -51,28 +46,24 @@ class Cache:
             for k, v in keys.items():
                 types += [f"{k} {type_transformer(v)} not null"]
             types = ', '.join(types)
-            cls.execute(f"CREATE TABLE {table_name}({types});")
-            cls.db.commit()
+            self.execute(f"CREATE TABLE {table_name}({types});")
+            self.db.commit()
         else:
             raise ValueError("Keys is empty!")
     
-    @classmethod
-    def drop_table(cls, table):
-        cls.execute(f"DROP TABLE {table};")
-        cls.db.commit()
+    def drop_table(self, table):
+        self.execute(f"DROP TABLE {table};")
+        self.db.commit()
         
-    @classmethod
-    def rename_table(cls, table, new_name):
-        cls.execute(f"ALTER TABLE {table} RENAME TO {new_name};")
-        cls.db.commit()
+    def rename_table(self, table, new_name):
+        self.execute(f"ALTER TABLE {table} RENAME TO {new_name};")
+        self.db.commit()
         
-    @classmethod
-    def add_column(cls, table, key, typ):
-        cls.execute(f"ALTER TABLE {table} ADD COLUMN {key} {typ};")
-        cls.db.commit()
+    def add_column(self, table, key, typ):
+        self.execute(f"ALTER TABLE {table} ADD COLUMN {key} {typ};")
+        self.db.commit()
     
-    @classmethod
-    def init_tables(cls):
+    def init_tables(self):
         to_tables = {
             "webhooks": {
                 "id": str,
@@ -84,12 +75,16 @@ class Cache:
                 "info"              : str
             }
         }
-        tables = cls.get_tables()
+        tables = self.get_tables()
         for t, v in to_tables.items():
             if t not in tables:
-                cls.create_table(t, v)
+                self.create_table(t, v)
 
-    @classmethod
-    def close(cls):
-        cls.cursor.close()
-        cls.db.close()
+    def close(self):
+        self.cursor.close()
+        self.db.close()
+        
+        
+cache = Cache()
+cache.connect()
+
