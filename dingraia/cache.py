@@ -12,6 +12,10 @@ class Cache:
         self.db = sqlite3.connect(databaseName)
         self.cursor = self.db.cursor()
         
+    def change_database(self, databaseName):
+        self.close()
+        self.connect(databaseName=databaseName)
+        
     def execute(self, command, result=False):
         self.cursor.execute(command)
         if result:
