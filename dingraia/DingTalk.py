@@ -32,6 +32,7 @@ from .tools.debug import delog
 from .verify import get_token
 from .verify import url_res
 from .vars import *
+from .cache import cache
 
 send_url = "https://oapi.dingtalk.com/robot/send?access_token={}&timestamp={}&sign={}"
 channel = Channel.current()
@@ -1432,7 +1433,12 @@ class Dingtalk:
         @staticmethod
         def after_request(response: ClientResponse):
             if response.ok:
-                ...
+                is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
+                if is_exist:
+                    cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
+                else:
+                    cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
+                cache.db.commit()
     
     class _oapi_request:
         
@@ -1481,7 +1487,12 @@ class Dingtalk:
         @staticmethod
         def after_request(response: ClientResponse):
             if response.ok:
-                ...
+                is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
+                if is_exist:
+                    cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
+                else:
+                    cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
+                cache.db.commit()
     
     def start(self, flask_app: "flask.Flask" = None, **kwargs):
         """

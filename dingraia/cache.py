@@ -8,8 +8,8 @@ class Cache:
     def __init__(self):
         pass
 
-    def connect(self, databaseName: str = "Dingraia_cache.db"):
-        self.db = sqlite3.connect(databaseName)
+    def connect(self, databaseName: str = "Dingraia_cache.db", **kwargs):
+        self.db = sqlite3.connect(databaseName, **kwargs)
         self.cursor = self.db.cursor()
         
     def change_database(self, databaseName):
@@ -77,6 +77,10 @@ class Cache:
                 "chatId"            : str,
                 "openConversationId": str,
                 "info"              : str
+            },
+            "counts": {
+                "type": str,
+                "count": int
             }
         }
         tables = self.get_tables()
@@ -90,5 +94,5 @@ class Cache:
         
         
 cache = Cache()
-cache.connect()
+cache.connect(check_same_thread=False)
 
