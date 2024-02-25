@@ -23,6 +23,8 @@ class Cache:
             self.cursor.execute(command)
             if result:
                 return self.cursor.fetchall()
+        else:
+            return ()
         
     def get_tables(self):
         res = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", True)
