@@ -40,7 +40,9 @@ class Config:
                  event_callback: CallBack = None,
                  bot: Bot = None,
                  stream: List[Stream] = None,
-                 autoBotConfig: bool = True
+                 *,
+                 autoBotConfig: bool = True,
+                 useDatabase: bool = True
                  ):
         """初始化Config
         
@@ -53,6 +55,7 @@ class Config:
             stream:
             autoBotConfig: 是否自动替换Bot的值
         """
+        self.useDatabase = useDatabase
         self.event_callback = event_callback
         self.bot: Union[Bot, None] = bot
         self.stream: Union[List[Stream], None] = stream

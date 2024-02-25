@@ -80,6 +80,7 @@ class Dingtalk:
     def __init__(self, config: Config = None):
         if Dingtalk.config is None:
             Dingtalk.config = config
+            cache.enable = config.useDatabase
     
     async def send_message(self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
                            headers=None):
