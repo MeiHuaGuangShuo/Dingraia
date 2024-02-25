@@ -1439,7 +1439,7 @@ class Dingtalk:
                     cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
                 else:
                     cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
-                cache.db.commit()
+                cache.commit()
     
     class _oapi_request:
         
@@ -1493,7 +1493,7 @@ class Dingtalk:
                     cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
                 else:
                     cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
-                cache.db.commit()
+                cache.commit()
     
     def start(self, flask_app: "flask.Flask" = None, **kwargs):
         """
