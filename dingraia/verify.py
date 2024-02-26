@@ -1,8 +1,7 @@
 import json
-from typing import Union, Any
+from typing import Union
 
 import aiohttp
-import requests
 from aiohttp import ClientResponse
 
 from .element import AccessToken

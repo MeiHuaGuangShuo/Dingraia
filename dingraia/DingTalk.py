@@ -14,7 +14,6 @@ from typing import Dict, Coroutine, Literal
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse
-from .log import logger
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream
@@ -33,6 +32,7 @@ from .verify import get_token
 from .verify import url_res
 from .vars import *
 from .cache import cache
+from .log import logger
 
 send_url = "https://oapi.dingtalk.com/robot/send?access_token={}&timestamp={}&sign={}"
 channel = Channel.current()

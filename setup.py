@@ -1,9 +1,9 @@
 ﻿from setuptools import setup, find_packages
-from dingraia.VERSION import VERSION
+# from dingraia.VERSION import VERSION
 
 setup(
     name='dingraia',
-    version=VERSION,
+    version="2.0.5",
     packages=find_packages(),
     url='https://github.com/MeiHuaGuangShuo/Dingraia',
     author='MeiHuaGuangShuo',

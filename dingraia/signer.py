@@ -12,9 +12,8 @@ import urllib.parse
 from random import choice
 
 from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 from Crypto.Util.Padding import pad
-from loguru import logger
+from .log import logger
 
 from dingraia.tools.debug import delog
 

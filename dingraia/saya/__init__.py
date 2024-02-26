@@ -2,7 +2,7 @@ import sys
 from contextlib import contextmanager
 from typing import Union, Callable
 import os
-from loguru import logger
+from ..log import logger
 
 from .channel import Channel
 from .context import channel_instance, saya_instance

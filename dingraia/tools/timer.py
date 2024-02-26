@@ -1,6 +1,5 @@
 ﻿import time
-
-from loguru import logger
+from ..log import logger
 
 
 class TimeCost:

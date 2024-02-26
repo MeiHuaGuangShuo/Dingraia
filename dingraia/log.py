@@ -6,6 +6,7 @@ from rich.logging import RichHandler
 import logging
 
 
+logger = logger.opt(raw=True)
 logging.basicConfig(
     level='INFO',
     format="%(message)s",

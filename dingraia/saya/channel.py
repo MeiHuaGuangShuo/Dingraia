@@ -5,7 +5,7 @@ import itertools
 from concurrent.futures import ThreadPoolExecutor
 from typing import Union
 
-from loguru import logger
+from ..log import logger
 
 from .builtins.broadcast.schema import ListenerSchema
 from .context import channel_instance
