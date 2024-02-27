@@ -146,6 +146,11 @@ def sync_example(app: Dingtalk):
 
 让我想想...
 
+# 衍生项目
+
+[DingtalkStreamPushForward](https://github.com/MeiHuaGuangShuo/DingtalkStreamPushForward) - 
+通过Stream模式转发钉钉服务器的消息到WebSocket和Webhook，支持本项目的连接
+
 # 最后要说
 
 本项目基于[Graia](https://github.com/GraiaProject/Ariadne)QQ机器人框架模仿开发，
