@@ -1349,6 +1349,13 @@ class Dingtalk:
         return sign, timestamp, secure_key
     
     @staticmethod
+    def get_api_counts():
+        res = cache.execute("SELECT * FROM `counts` WHERE type='openApi'", result=True)
+        if res:
+            return res[0][1]
+        return 0
+    
+    @staticmethod
     async def _send(url, send_data, headers=None):
         delog.info(f"发送中:{url}", no=40)
         if url and "http" not in url:
