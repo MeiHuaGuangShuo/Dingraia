@@ -178,7 +178,7 @@ class Dingtalk:
             self.log.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}")
         else:
             url = str(target)
-            self.log.info(f"[SEND] <- {repr(str(msg))[1:-1]}")
+            self.log.info(f"[SEND][WebHook] <- {repr(str(msg))[1:-1]}")
         delog.info(send_data, no=60)
         if url and "http" not in url:
             logger.error(f"Wrong send url [{url}]!")
