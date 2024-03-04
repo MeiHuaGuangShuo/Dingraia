@@ -4,6 +4,7 @@ import collections
 import hmac
 import importlib.metadata
 import inspect
+import json
 import signal
 import socket
 import urllib.parse
@@ -260,7 +261,7 @@ class Dingtalk:
         async def _run(_message, _openConversationId, _processQueryKeys, _robotCode, _access_token, _inThreadTime):
             _access_token = _access_token or self.access_token
             if message:
-                _processQueryKeys = message.json['processQueryKey']
+                _processQueryKeys = message.json()['processQueryKey']
                 _openConversationId = message.recallOpenConversationId
             _processQueryKeys = [str(x) for x in
                                  (_processQueryKeys if isinstance(_processQueryKeys, list) else [_processQueryKeys])]
@@ -1394,30 +1395,30 @@ class Dingtalk:
         
         async def get(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
-            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.get(self._url_resolve(urlPath), headers=headers, **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         async def post(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
-            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.post(self._url_resolve(urlPath), headers=headers, **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         async def put(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
-            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.put(self._url_resolve(urlPath), headers=headers, **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         async def delete(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
-            self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.delete(self._url_resolve(urlPath), headers=headers, **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         @staticmethod
@@ -1435,18 +1436,33 @@ class Dingtalk:
             return headers
 
         @staticmethod
-        def before_request(urlPath: str, headers=None, **kwargs):
-            ...
+        async def before_request(urlPath: str, headers=None, **kwargs):
+            try:
+                ...
+            except Exception as e:
+                logger.exception(f"在处理 {urlPath} 的请求时发生异常。请求头: {headers}请求参数: {kwargs}", e)
 
         @staticmethod
-        def after_request(response: ClientResponse):
-            if response.ok:
-                is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
-                if is_exist:
-                    cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
-                else:
-                    cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
-                cache.commit()
+        async def after_request(response: ClientResponse):
+            try:
+                if response.ok:
+                    try:
+                        resp = await response.json()
+                        if resp.get("errcode"):
+                            return
+                    except json.JSONDecodeError:
+                        pass
+                    except Exception as e:
+                        logger.exception(e)
+                        logger.warning("此次请求会继续提交到次数")
+                    is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
+                    if is_exist:
+                        cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
+                    else:
+                        cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
+                    cache.commit()
+            except Exception as e:
+                logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
     
     class _oapi_request:
         
@@ -1455,27 +1471,27 @@ class Dingtalk:
             self.access_token = access_token
         
         async def get(self, urlPath: str, **kwargs) -> ClientResponse:
-            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.get(self._url_resolve(urlPath), **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         async def post(self, urlPath, **kwargs) -> ClientResponse:
-            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.post(self._url_resolve(urlPath), **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         async def put(self, urlPath, **kwargs) -> ClientResponse:
-            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.put(self._url_resolve(urlPath), **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         async def delete(self, urlPath, **kwargs) -> ClientResponse:
-            self.before_request(urlPath=urlPath, kwargs=kwargs)
+            await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.delete(self._url_resolve(urlPath), **kwargs)
-            self.after_request(resp)
+            await self.after_request(resp)
             return resp
         
         def _url_resolve(self, urlPath: str):
@@ -1489,18 +1505,33 @@ class Dingtalk:
             return url
 
         @staticmethod
-        def before_request(urlPath: str, **kwargs):
-            ...
+        async def before_request(urlPath: str, **kwargs):
+            try:
+                ...
+            except Exception as e:
+                logger.exception(f"在处理 {urlPath} 的请求时发生异常。请求参数: {kwargs}", e)
 
         @staticmethod
-        def after_request(response: ClientResponse):
-            if response.ok:
-                is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
-                if is_exist:
-                    cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
-                else:
-                    cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
-                cache.commit()
+        async def after_request(response: ClientResponse):
+            try:
+                if response.ok:
+                    try:
+                        resp = await response.json()
+                        if resp.get("errcode"):
+                            return
+                    except json.JSONDecodeError:
+                        pass
+                    except Exception as e:
+                        logger.exception(e)
+                        logger.warning("此次请求会继续提交到次数")
+                    is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
+                    if is_exist:
+                        cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
+                    else:
+                        cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
+                    cache.commit()
+            except Exception as e:
+                logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
     
     def start(self, flask_app: "flask.Flask" = None, **kwargs):
         """
@@ -1609,14 +1640,15 @@ class Dingtalk:
         """
         
         def get_host_ip():
-            ip = ""
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect(('8.8.8.8', 80))
                 ip = s.getsockname()[0]
+            except:
+                ip = '127.0.0.1'
             finally:
                 s.close()
-                return ip
+            return ip
         
         async def open_connection(task_name: str):
             logger.info(f'[{task_name}] Requesting stream')
