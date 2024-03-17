@@ -457,8 +457,6 @@ class Dingtalk:
         subAdminIds = subAdminIds or [ownerUserId]
         subAdminIds = [str(x) for x in subAdminIds]
         subAdminIds = ",".join(subAdminIds)
-        access_token = access_token or self.access_token
-        url = f"https://oapi.dingtalk.com/topapi/im/chat/scenegroup/create?access_token={access_token}"
         data = {
             "title"                          : name,
             "template_id"                    : templateId,
@@ -482,9 +480,12 @@ class Dingtalk:
             "group_live_switch"              : 1,
             "members_to_admin_chat"          : 0
         }
-        res = await url_res(url,
-                            'POST',
-                            json=data, res='json')
+        if access_token:
+            url = f"https://oapi.dingtalk.com/topapi/im/chat/scenegroup/create?access_token={access_token}"
+            res = await url_res(url, 'POST', json=data, res='json')
+        else:
+            resp = await self.oapi_request.post("/topapi/im/chat/scenegroup/create", json=data)
+            res = await resp.json()
         if not res['success']:
             logger.error(f"Cannot create the group!Response: {json.dumps(res, ensure_ascii=False, indent=4)}")
         return res
@@ -561,11 +562,15 @@ class Dingtalk:
 
         """
         userStaffId = self._staffId2str(userStaffId)
-        access_token = access_token or self.access_token
-        res = await url_res(
-            f'https://oapi.dingtalk.com/topapi/v2/user/get?access_token={access_token}',
-            'POST',
-            json={"language": language, "userid": userStaffId}, res='json')
+        if access_token:
+            res = await url_res(
+                f'https://oapi.dingtalk.com/topapi/v2/user/get?access_token={access_token}',
+                'POST',
+                json={"language": language, "userid": userStaffId}, res='json')
+        else:
+            resp = await self.oapi_request.post("/topapi/v2/user/get",
+                                                json={"language": language, "userid": userStaffId})
+            res = await resp.json()
         return res
     
     async def remove_user(self, userStaffId: Union[Member, str], access_token: str = None):
@@ -579,11 +584,14 @@ class Dingtalk:
 
         """
         userStaffId = self._staffId2str(userStaffId)
-        access_token = access_token or self.access_token
-        res = await url_res(
-            f'https://oapi.dingtalk.com/topapi/v2/user/delete?access_token={access_token}',
-            'POST',
-            json={"userid": userStaffId}, res='json')
+        if access_token:
+            res = await url_res(
+                f'https://oapi.dingtalk.com/topapi/v2/user/delete?access_token={access_token}',
+                'POST',
+                json={"userid": userStaffId}, res='json')
+        else:
+            resp = await self.oapi_request.post("/topapi/v2/user/delete", json={"userid": userStaffId})
+            res = await resp.json()
         return res
     
     async def create_user(
@@ -1351,10 +1359,7 @@ class Dingtalk:
     
     @staticmethod
     def get_api_counts():
-        res = cache.execute("SELECT * FROM `counts` WHERE type='openApi'", result=True)
-        if res:
-            return res[0][1]
-        return 0
+        return cache.get_api_counts()
     
     @staticmethod
     async def _send(url, send_data, headers=None):
@@ -1455,12 +1460,7 @@ class Dingtalk:
                     except Exception as e:
                         logger.exception(e)
                         logger.warning("此次请求会继续提交到次数")
-                    is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
-                    if is_exist:
-                        cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
-                    else:
-                        cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
-                    cache.commit()
+                    cache.add_openapi_count()
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
     
@@ -1524,12 +1524,7 @@ class Dingtalk:
                     except Exception as e:
                         logger.exception(e)
                         logger.warning("此次请求会继续提交到次数")
-                    is_exist = cache.execute(f"SELECT * FROM `counts` WHERE type='openApi'", result=True)
-                    if is_exist:
-                        cache.execute(f"UPDATE `counts` SET count=count+1 WHERE type='openApi';")
-                    else:
-                        cache.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', 1);")
-                    cache.commit()
+                    cache.add_openapi_count()
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
     
@@ -1880,9 +1875,7 @@ class Dingtalk:
     def _openConversationId2str(openConversationId: Union[OpenConversationId, Group, str]) -> str:
         if isinstance(openConversationId, Group):
             openConversationId = openConversationId.openConversationId
-        else:
-            openConversationId = str(openConversationId)
-        return openConversationId
+        return str(openConversationId)
     
     @staticmethod
     def _staffId2str(staffId: Union[Member, str]) -> str:

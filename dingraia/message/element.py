@@ -381,6 +381,8 @@ class FeedCard(BaseElement):
 
 
 class At:
+    id: str
+    target: str
     
     def __init__(self, target: Union[tuple, Member], display: str = ""):
         if isinstance(target, Member):

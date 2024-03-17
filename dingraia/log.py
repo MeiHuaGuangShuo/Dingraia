@@ -5,8 +5,7 @@ from loguru import logger
 from rich.logging import RichHandler
 import logging
 
-
-logger = logger.opt(raw=True)
+# logger = logger.opt(raw=True)
 logging.basicConfig(
     level='INFO',
     format="%(message)s",

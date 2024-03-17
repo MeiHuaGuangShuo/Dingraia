@@ -1,4 +1,5 @@
 import sqlite3
+from .exceptions import *
 
 
 class Cache:
@@ -12,6 +13,7 @@ class Cache:
     def connect(self, databaseName: str = "Dingraia_cache.db", **kwargs):
         self.db = sqlite3.connect(databaseName, **kwargs)
         self.cursor = self.db.cursor()
+        self.init_tables()
         
     def change_database(self, databaseName):
         self.close()
@@ -93,6 +95,29 @@ class Cache:
         for t, v in to_tables.items():
             if t not in tables:
                 self.create_table(t, v)
+    
+    def key_exists(self, table, column, name) -> bool:
+        return bool(self.execute(f"SELECT * FROM `{table}` WHERE {column}='{name}'", result=True))
+    
+    def add_value(self, table, column, name, index, add: int = 1):
+        if self.key_exists(table, column, name):
+            self.execute(f"UPDATE `{table}` SET {name}={name}+{add} WHERE {index}='openApi';")
+            self.commit()
+        else:
+            raise SQLError(f"Index '{index}' does not found in the table '{table}'")
+    
+    def add_openapi_count(self, times: int = 1):
+        if self.key_exists('counts', 'type', 'openApi'):
+            self.execute(f"UPDATE `counts` SET count=count+{times} WHERE type='openApi';")
+        else:
+            self.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', {times});")
+        self.commit()
+    
+    def get_api_counts(self):
+        res = self.execute("SELECT * FROM `counts` WHERE type='openApi'", result=True)
+        if res:
+            return res[0][1]
+        return 0
                 
     def commit(self):
         if self.enable:
@@ -105,4 +130,3 @@ class Cache:
         
 cache = Cache()
 cache.connect(check_same_thread=False)
-

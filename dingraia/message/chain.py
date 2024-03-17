@@ -1,8 +1,10 @@
-﻿from typing import Any
+﻿from typing import Any, TypeVar
 
 from typing_extensions import Self
 
 from .element import At
+
+_T = TypeVar('_T')
 
 
 class MessageChain:
@@ -16,7 +18,7 @@ class MessageChain:
     def include(self, __obj: type) -> Self:
         return self.get(__obj)  # __class__([i for i in self.mes if isinstance(i, __obj)])
     
-    def get_first(self, __obj: type) -> Self:
+    def get_first(self, __obj: _T) -> _T:
         return self.get(__obj)[0]
     
     def get(self, element_class: type, count: int = -1) -> list:

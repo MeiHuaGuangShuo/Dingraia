@@ -27,6 +27,10 @@ class UploadFileSizeError(Exception):
     ...
 
 
+class SQLError(Exception):
+    ...
+
+
 class DingtalkAPIError(Exception):
     code = -1
 
