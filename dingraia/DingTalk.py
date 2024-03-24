@@ -17,7 +17,7 @@ import websockets
 from aiohttp import ClientSession, ClientResponse
 from .VERSION import VERSION
 from .callback_handler import callback_handler
-from .config import Config, Stream
+from .config import Config, Stream, CustomStreamConnect
 from .element import *
 from .event import MessageEvent
 from .event.event import *
@@ -75,8 +75,8 @@ class Dingtalk:
     oapi_request: "Dingtalk._oapi_request" = None
     async_tasks = []
     stream_checker = {}
-    stream_connect = None
     """用于检测重复的回调, 键为任务名, 值为容纳50个StreamID的列表"""
+    stream_connect: CustomStreamConnect = None
     
     def __init__(self, config: Config = None):
         if Dingtalk.config is None:
@@ -1645,7 +1645,7 @@ class Dingtalk:
                 s.close()
             return ip
         
-        async def open_connection(task_name: str):
+        async def open_connection(task_name: str, url: str = self.WS_CONNECT_URL):
             logger.info(f'[{task_name}] Requesting stream')
             request_headers = {
                 'User-Agent': f'Dingraia/{VERSION} (+https://github.com/MeiHuaGuangShuo/Dingraia)'
@@ -1662,7 +1662,7 @@ class Dingtalk:
                 'ua'           : f'Dingraia/{VERSION}',
                 'localIp'      : get_host_ip()
             }
-            response = requests.post(self.WS_CONNECT_URL,
+            response = requests.post(url,
                                      headers=request_headers,
                                      json=request_body)
             try:
@@ -1734,20 +1734,24 @@ class Dingtalk:
                 logger.exception(f"[{task_name}] Error happened while handing the message", err)
             return result
         
-        async def main_stream(task_name: str, dingtalk: "Dingtalk"):
+        async def main_stream(task_name: str):
             while ...:
-                if not dingtalk.stream_connect:
+                if not self.stream_connect:
                     connection = await open_connection(task_name)
                 else:
-                    key = dingtalk.config.bot.appKey
-                    secret = dingtalk.config.bot.appSecret
-                    if dingtalk.stream_connect[1]:
-                        if inspect.iscoroutinefunction(dingtalk.stream_connect[1]):
-                            connection = await dingtalk.stream_connect[1](key, secret)
-                        elif dingtalk.stream_connect[1] == "Auth":
-                            connection = await open_connection(task_name)
+                    key = self.config.bot.appKey
+                    secret = self.config.bot.appSecret
+                    if self.stream_connect.SignHandler:
+                        if inspect.iscoroutinefunction(self.stream_connect.SignHandler):
+                            connection = await self.stream_connect.SignHandler(key, secret)
+                        elif inspect.isfunction(self.stream_connect.SignHandler):
+                            connection = self.stream_connect.SignHandler(key, secret)
+                        elif isinstance(self.stream_connect.SignHandler, str):
+                            if "http" not in self.stream_connect.SignHandler:
+                                raise ValueError(f"Incorrect signer url, consider use None to skip sign")
+                            connection = await open_connection(task_name, self.stream_connect.SignHandler)
                         else:
-                            connection = dingtalk.stream_connect[1](key, secret)
+                            raise ValueError(f"Incorrect signer param, consider use None to skip sign")
                     else:
                         connection = {"endpoint": "Pass", "ticket": "Pass"}
                 
@@ -1763,11 +1767,11 @@ class Dingtalk:
                     return
                 uri = '%s?ticket=%s' % (connection['endpoint'], urllib.parse.quote_plus(connection['ticket']))
                 headers = {'User-Agent': f'Dingraia/{VERSION} (+https://github.com/MeiHuaGuangShuo/Dingraia)'}
-                if dingtalk.stream_connect:
-                    if dingtalk.stream_connect[0]:
-                        uri = dingtalk.stream_connect[0]
-                    if len(dingtalk.stream_connect) > 2 and dingtalk.stream_connect[2]:
-                        headers = dingtalk.stream_connect[2]
+                if self.stream_connect:
+                    if self.stream_connect.StreamUrl:
+                        uri = self.stream_connect.StreamUrl
+                    if self.stream_connect.ExtraHeaders:
+                        headers = self.stream_connect.ExtraHeaders
                 if connection:
                     if "?" not in uri:
                         uri = f"{uri}?ticket={urllib.parse.quote_plus(connection['ticket'])}"
@@ -1802,9 +1806,9 @@ class Dingtalk:
             no = next(_no)
             name = f"#{no} Main Stream"
             if not is_debug:
-                self.async_tasks.append(self.loop.create_task(main_stream(name, self), name=name))
+                self.async_tasks.append(self.loop.create_task(main_stream(name), name=name))
             else:
-                self.create_task(self.coroutine_watcher(main_stream, name, self))
+                self.create_task(self.coroutine_watcher(main_stream, name))
             logger.info(f"Create Stream Task - {name}")
             # 为了使用序号所以不会使用内置的create_task
         except asyncio.exceptions.CancelledError:

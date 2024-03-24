@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Callable
 
 
 class Bot:
@@ -32,6 +32,15 @@ class Stream:
     def __init__(self, AppKey: str, AppSecret: str):
         self.AppKey = AppKey
         self.AppSecret = AppSecret
+
+
+class CustomStreamConnect:
+    
+    def __init__(self, StreamUrl: str, SignHandler: Union[str, Callable] = None, ExtraHeaders: dict = None):
+        if ExtraHeaders is None:
+            self.ExtraHeaders = {}
+        self.StreamUrl = StreamUrl
+        self.SignHandler = SignHandler
 
 
 class Config:
