@@ -1744,6 +1744,8 @@ class Dingtalk:
                     if dingtalk.stream_connect[1]:
                         if inspect.iscoroutinefunction(dingtalk.stream_connect[1]):
                             connection = await dingtalk.stream_connect[1](key, secret)
+                        elif dingtalk.stream_connect[1] == "Auth":
+                            connection = await open_connection(task_name)
                         else:
                             connection = dingtalk.stream_connect[1](key, secret)
                     else:
@@ -1766,6 +1768,12 @@ class Dingtalk:
                         uri = dingtalk.stream_connect[0]
                     if len(dingtalk.stream_connect) > 2 and dingtalk.stream_connect[2]:
                         headers = dingtalk.stream_connect[2]
+                if connection:
+                    if "?" not in uri:
+                        uri = f"{uri}?ticket={urllib.parse.quote_plus(connection['ticket'])}"
+                    else:
+                        if "ticket" not in uri:
+                            uri = f"{uri}&ticket={urllib.parse.quote_plus(connection['ticket'])}"
                 try:
                     async with websockets.connect(uri, extra_headers=headers) as websocket:
                         logger.success(f"[{task_name}] Websocket connected")
