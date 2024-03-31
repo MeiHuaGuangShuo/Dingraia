@@ -82,6 +82,7 @@ class Dingtalk:
         if Dingtalk.config is None:
             Dingtalk.config = config
             cache.enable = config.useDatabase
+            self.stream_connect = config.customStreamConnect
     
     async def send_message(self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
                            headers=None):
@@ -484,8 +485,7 @@ class Dingtalk:
             url = f"https://oapi.dingtalk.com/topapi/im/chat/scenegroup/create?access_token={access_token}"
             res = await url_res(url, 'POST', json=data, res='json')
         else:
-            resp = await self.oapi_request.post("/topapi/im/chat/scenegroup/create", json=data)
-            res = await resp.json()
+            res = await self.oapi_request.jpost("/topapi/im/chat/scenegroup/create", json=data)
         if not res['success']:
             logger.error(f"Cannot create the group!Response: {json.dumps(res, ensure_ascii=False, indent=4)}")
         return res
@@ -506,9 +506,8 @@ class Dingtalk:
                                 'POST',
                                 json={'open_conversation_id': openConversationId}, res='json')
         else:
-            resp = await self.oapi_request.post("/topapi/im/chat/scenegroup/get",
+            res = await self.oapi_request.jpost("/topapi/im/chat/scenegroup/get",
                                                 json={'open_conversation_id': openConversationId})
-            res = await resp.json()
         if res['errcode']:
             if res['errcode'] == 4000003:
                 logger.error(f"OpenConversationId 对应的群不是由群模板创建的或没有酷应用支持！")
@@ -521,10 +520,9 @@ class Dingtalk:
                 json={'openConversationId': openConversationId, "maxResults": 1000},
                 res='json')
         else:
-            resp = await self.oapi_request.post('/topapi/im/chat/scenegroup/member/get',
+            users_res = await self.oapi_request.jpost('/topapi/im/chat/scenegroup/member/get',
                                                 json={'open_conversation_id': openConversationId, "size": 1000,
                                                       "cursor"              : 0})
-            users_res = await resp.json()
             users_res = users_res.get('result', {})
         res: dict = res['result']
         res['user_ids'] = users_res.get('member_user_ids')
@@ -547,8 +545,7 @@ class Dingtalk:
             url = f"https://oapi.dingtalk.com/topapi/v2/department/listsub?access_token={access_token}"
             res = await url_res(url, 'POST', json={'dept_id': deptId}, res='json')
         else:
-            resp = await self.oapi_request.post('/topapi/v2/department/listsub', json={'dept_id': deptId})
-            res = await resp.json()
+            res = await self.oapi_request.jpost('/topapi/v2/department/listsub', json={'dept_id': deptId})
         return res
     
     async def get_user(self, userStaffId: Union[Member, str], language: str = "zh_CN", access_token: str = None):
@@ -568,9 +565,8 @@ class Dingtalk:
                 'POST',
                 json={"language": language, "userid": userStaffId}, res='json')
         else:
-            resp = await self.oapi_request.post("/topapi/v2/user/get",
+            res = await self.oapi_request.jpost("/topapi/v2/user/get",
                                                 json={"language": language, "userid": userStaffId})
-            res = await resp.json()
         return res
     
     async def remove_user(self, userStaffId: Union[Member, str], access_token: str = None):
@@ -590,8 +586,7 @@ class Dingtalk:
                 'POST',
                 json={"userid": userStaffId}, res='json')
         else:
-            resp = await self.oapi_request.post("/topapi/v2/user/delete", json={"userid": userStaffId})
-            res = await resp.json()
+            res = await self.oapi_request.jpost("/topapi/v2/user/delete", json={"userid": userStaffId})
         return res
     
     async def create_user(
@@ -669,8 +664,7 @@ class Dingtalk:
             data['manager_userid'] = managerUserId
         if loginEmail:
             data['login_email'] = loginEmail
-        resp = await self.oapi_request.post('/topapi/v2/user/create', json=data)
-        res = await resp.json()
+        res = await self.oapi_request.jpost('/topapi/v2/user/create', json=data)
         return res
     
     async def update_user(
@@ -734,8 +728,7 @@ class Dingtalk:
             data['language'] = language
         if force_update_fields:
             data['force_update_fields'] = ",".join([str(x) for x in force_update_fields])
-        resp = await self.oapi_request.post('/topapi/v2/user/update', json=data)
-        res = await resp.json()
+        res = await self.oapi_request.jpost('/topapi/v2/user/update', json=data)
         return res
     
     async def mirror_group(self, openConversationId: Union[OpenConversationId, Group, str]):
@@ -880,9 +873,8 @@ class Dingtalk:
                 'POST',
                 json=data, res='json')
         else:
-            resp = await self.oapi_request.post("/topapi/im/chat/scenegroup/update",
+            res = await self.oapi_request.jpost("/topapi/im/chat/scenegroup/update",
                                                 json=data)
-            res = await resp.json()
         return res
     
     async def change_group_title(self, openConversationId: Union[OpenConversationId, Group, str], title: str):
@@ -929,10 +921,9 @@ class Dingtalk:
         openConversationId = self._openConversationId2str(openConversationId)
         memberStaffIds = self._staffId2list(memberStaffIds)
         memberStaffIds = ','.join(memberStaffIds)
-        resp = await self.oapi_request.post('/topapi/im/chat/scenegroup/member/delete',
+        res = await self.oapi_request.jpost('/topapi/im/chat/scenegroup/member/delete',
                                             json={"open_conversation_id": openConversationId,
                                                   "user_ids"            : memberStaffIds})
-        res = await resp.json()
         return res
     
     async def add_member(self, openConversationId: Union[OpenConversationId, Group, str],
@@ -949,10 +940,9 @@ class Dingtalk:
         openConversationId = self._openConversationId2str(openConversationId)
         memberStaffIds = self._staffId2list(memberStaffIds)
         memberStaffIds = ','.join(memberStaffIds)
-        resp = await self.oapi_request.post('/topapi/im/chat/scenegroup/member/add',
+        res = await self.oapi_request.jpost('/topapi/im/chat/scenegroup/member/add',
                                             json={"open_conversation_id": openConversationId,
                                                   "user_ids"            : memberStaffIds})
-        res = await resp.json()
         return res
     
     async def set_admin(self, openConversationId: Union[OpenConversationId, Group, str],
@@ -969,10 +959,9 @@ class Dingtalk:
         """
         openConversationId = self._openConversationId2str(openConversationId)
         memberStaffIds = self._staffId2list(memberStaffIds)
-        resp = await self.api_request.put('/v1.0/im/sceneGroups/subAdmins',
+        res = await self.api_request.jput('/v1.0/im/sceneGroups/subAdmins',
                                           json={"openConversationId": openConversationId, "userIds": memberStaffIds,
                                                 'role'              : 2 if set_admin else 3})
-        res = await resp.json()
         return res
     
     async def mute_member(
@@ -991,18 +980,16 @@ class Dingtalk:
         Returns:
 
         """
-        url = f"https://api.dingtalk.com/v1.0/im/sceneGroups/muteMembers/set"
         memberStaffIds = [str(x) for x in (memberStaffIds if isinstance(memberStaffIds, list) else [memberStaffIds])]
         openConversationId = self._openConversationId2str(openConversationId)
         memberStaffIds = self._staffId2list(memberStaffIds)
-        resp = await self.api_request.post('/v1.0/im/sceneGroups/muteMembers/set',
+        res = await self.api_request.jpost('/v1.0/im/sceneGroups/muteMembers/set',
                                            json={
                                                "openConversationId": openConversationId,
                                                "userIdList"        : memberStaffIds,
                                                "muteStatus"        : 1 if muteTime else 0,
                                                "muteDuration"      : muteTime * 1000
                                            })
-        res = await resp.json()
         return res
     
     async def unmute_member(
@@ -1053,11 +1040,14 @@ class Dingtalk:
             "cardTemplateId": "StandardCard"
         }
         logger.debug(data)
-        res = await url_res(
-            url, "POST",
-            headers={'x-acs-dingtalk-access-token': access_token},
-            json=data
-        )
+        if access_token:
+            res = await url_res(
+                url, "POST",
+                headers={'x-acs-dingtalk-access-token': access_token},
+                json=data
+            )
+        else:
+            res = await self.api_request.jpost(url, json=data)
         return res
     
     @staticmethod
@@ -1426,6 +1416,22 @@ class Dingtalk:
             await self.after_request(resp)
             return resp
         
+        async def jget(self, urlPath, *, headers=None, **kwargs) -> dict:
+            resp = await self.get(urlPath=urlPath, headers=headers, **kwargs)
+            return await resp.json()
+        
+        async def jpost(self, urlPath, *, headers=None, **kwargs) -> dict:
+            resp = await self.post(urlPath=urlPath, headers=headers, **kwargs)
+            return await resp.json()
+        
+        async def jput(self, urlPath, *, headers=None, **kwargs) -> dict:
+            resp = await self.put(urlPath=urlPath, headers=headers, **kwargs)
+            return await resp.json()
+        
+        async def jdelete(self, urlPath, *, headers=None, **kwargs) -> dict:
+            resp = await self.delete(urlPath=urlPath, headers=headers, **kwargs)
+            return await resp.json()
+        
         @staticmethod
         def _url_resolve(urlPath: str) -> str:
             if "http" not in urlPath and not urlPath.startswith('/'):
@@ -1493,6 +1499,22 @@ class Dingtalk:
             resp = await self.clientSession.delete(self._url_resolve(urlPath), **kwargs)
             await self.after_request(resp)
             return resp
+        
+        async def jget(self, urlPath, **kwargs) -> dict:
+            resp = await self.get(urlPath=urlPath, **kwargs)
+            return await resp.json()
+        
+        async def jpost(self, urlPath, **kwargs) -> dict:
+            resp = await self.post(urlPath=urlPath, **kwargs)
+            return await resp.json()
+        
+        async def jput(self, urlPath, **kwargs) -> dict:
+            resp = await self.put(urlPath=urlPath, **kwargs)
+            return await resp.json()
+        
+        async def jdelete(self, urlPath, **kwargs) -> dict:
+            resp = await self.delete(urlPath=urlPath, **kwargs)
+            return await resp.json()
         
         def _url_resolve(self, urlPath: str):
             if "http" not in urlPath and not urlPath.startswith('/'):

@@ -50,6 +50,7 @@ class Config:
                  bot: Bot = None,
                  stream: List[Stream] = None,
                  *,
+                 customStreamConnect: CustomStreamConnect = None,
                  autoBotConfig: bool = True,
                  useDatabase: bool = True
                  ):
@@ -66,6 +67,7 @@ class Config:
         """
         self.useDatabase = useDatabase
         self.event_callback = event_callback
+        self.customStreamConnect = customStreamConnect
         self.bot: Union[Bot, None] = bot
         self.stream: Union[List[Stream], None] = stream
         if not isinstance(self.stream, list):
