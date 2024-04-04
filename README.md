@@ -1,4 +1,4 @@
-此文档最后更新于24/1/14 v2.0.3
+此文档最后更新于24/4/5 v2.0.8
 
 # 这是什么？
 
@@ -82,7 +82,7 @@ pip install --upgrade dingraia
 
 ```python
 @channel.use(ListenerSchema(listening_events[GroupMessage]))  # 目前只支持GroupMessage
-async def example(group: Group):  # 此处暂不支持传入机器人实例
+async def example(app: Dingtalk, group: Group):
     ...
 ```
 
@@ -90,12 +90,13 @@ async def example(group: Group):  # 此处暂不支持传入机器人实例
 
 ```python
 @channel.use(ListenerSchema(listening_events[GroupMessage]))
-def example(group: Group):  # 此处暂不支持传入机器人实例
+def example(app: Dingtalk, group: Group):
     ...
 ```
 
 它们都会并发执行
 ~~(你不会异步的话建议直接使用def，这样理论上效率会快一点)~~
+框架全部是异步法方法，虽然提供了函数来运行异步函数，但是还是建议使用异步函数
 
 ## 发送消息
 
@@ -131,15 +132,17 @@ await app.recall_message(res)
 
 使用如下代码即可
 ```python
-from  dingraia.lazy import *
-@channel.use(...)
+from dingraia.lazy import *
+
+
+@channel.use(ListenerSchema(listening_events[GroupMessage]))
 def sync_example(app: Dingtalk):
     app.run_coroutine(app.mute_all(...)) # 使用的是app.loop执行的
 ```
 
 # 兼容度
 
-30%...
+20%...
 （简单的模块只需要替换import的模块和app）
 
 # TODO
