@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Union, BinaryIO
+from typing import Union, BinaryIO, List
 
 from ..model import Member
 
@@ -21,9 +21,9 @@ class File:
     
     downloadCode: str = None
     
-    def __init__(self, file: Union[Path, BinaryIO, str] = None):
+    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None):
         if file:
-            if not isinstance(file, BinaryIO):
+            if isinstance(file, (Path, str)):
                 f = open(file, 'rb')
                 self.file = f
                 f.seek(0, os.SEEK_END)
@@ -31,7 +31,10 @@ class File:
                 f.seek(0)
             else:
                 self.file = file
-                self.size = len(self.file.read())
+                if isinstance(self.file, BinaryIO):
+                    self.size = len(self.file.read())
+                elif isinstance(self.file, bytes):
+                    self.size = len(self.file)
         self.mediaId = None
         self.fileName = None
         self.fileType = 'file'
@@ -98,20 +101,9 @@ class Link(BaseElement):
 
 class Image(File):
     
-    def __init__(self, file: Union[Path, BinaryIO, str] = None):
+    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None):
         super().__init__(file)
-        if file:
-            if not isinstance(file, BinaryIO):
-                f = open(file, 'rb')
-                self.file = f
-                f.seek(0, os.SEEK_END)
-                self.size = f.tell()
-                f.seek(0)
-            else:
-                self.file = file
-                self.size = len(self.file.read())
         self.fileType = 'image'
-        self.mediaId = None
     
     @property
     def template(self):
@@ -134,18 +126,7 @@ class Audio(File):
     
     def __init__(self, file: Union[Path, BinaryIO, str] = None):
         super().__init__(file)
-        if file:
-            if not isinstance(file, BinaryIO):
-                f = open(file, 'rb')
-                self.file = f
-                f.seek(0, os.SEEK_END)
-                self.size = f.tell()
-                f.seek(0)
-            else:
-                self.file = file
-                self.size = len(self.file.read())
         self.fileType = 'voice'
-        self.mediaId = None
         self.duration = None
     
     @property
@@ -170,18 +151,7 @@ class Video(File):
     
     def __init__(self, file: Union[Path, BinaryIO, str] = None):
         super().__init__(file)
-        if file:
-            if not isinstance(file, BinaryIO):
-                f = open(file, 'rb')
-                self.file = f
-                f.seek(0, os.SEEK_END)
-                self.size = f.tell()
-                f.seek(0)
-            else:
-                self.file = file
-                self.size = len(self.file.read())
         self.fileType = 'video'
-        self.mediaId = None
         self.videoMediaId = None
         self.videoType = 'mp4'
         self.duration = None
@@ -236,7 +206,7 @@ class Markdown(BaseElement):
 
 class ActionCard(BaseElement):
     
-    def __init__(self, text: str, button: list, title: str = "[ActionCard]", orientation: int = 0):
+    def __init__(self, text: str, button: List[List[str]], title: str = "[ActionCard]", orientation: int = 0):
         """发送ActionCard消息
 
         Args:
@@ -356,7 +326,7 @@ class ActionCard(BaseElement):
 
 class FeedCard(BaseElement):
     
-    def __init__(self, links: list):
+    def __init__(self, links: List[List[str]]):
         """发送FeedCard消息
 
         Args:
