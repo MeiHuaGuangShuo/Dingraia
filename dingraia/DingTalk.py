@@ -4,7 +4,6 @@ import collections
 import hmac
 import importlib.metadata
 import inspect
-import json
 import signal
 import socket
 import urllib.parse
@@ -113,13 +112,13 @@ class Dingtalk:
                 send_data = msg.template
         elif isinstance(msg, File):
             if not msg.mediaId:
-                res = await self.upload_file(msg)
-                send_data = msg.template
-                send_data['media_id'] = res.mediaId
-            else:
-                send_data['media_id'] = msg.mediaId
+                msg = await self.upload_file(msg)
+            send_data = msg.template
+            send_data['media_id'] = msg.mediaId
             if isinstance(target, Group):
                 target = target.openConversationId
+            send_data['robotCode'] = self.config.bot.robotCode
+            send_data['openConversationId'] = str(target)
         else:
             if isinstance(target, OpenConversationId) or isinstance(target, Member):
                 send_data = {
@@ -241,7 +240,6 @@ class Dingtalk:
             openConversationId: Union[OpenConversationId, Group, str] = None,
             processQueryKeys: Union[str, List[str]] = None,
             robotCode: str = None,
-            access_token: str = None,
             inThreadTime: int = 0
     ):
         """撤回一条消息
@@ -251,35 +249,33 @@ class Dingtalk:
             openConversationId: 群对话ID, 可以是OpenConversationId或Group对象
             processQueryKeys: 消息的加密ID
             robotCode: 机器人的机器码
-            access_token: 企业的AccessToken
             inThreadTime: 是否不等待撤回
 
         Returns:
             text
 
         """
+        if message:
+            processQueryKeys = message.json()['processQueryKey']
+            openConversationId = message.recallOpenConversationId
+        processQueryKeys = [str(x) for x in
+                            (processQueryKeys if isinstance(processQueryKeys, list) else [processQueryKeys])]
+        if isinstance(openConversationId, Group):
+            openConversationId = openConversationId.openConversationId
+        if openConversationId is not None:
+            openConversationId = str(openConversationId)
+        if robotCode is None:
+            robotCode = self.config.bot.robotCode
+        post_data = {
+            "processQueryKeys": processQueryKeys,
+            "robotCode"       : robotCode
+        }
+        url = "/v1.0/robot/otoMessages/batchRecall"
+        if openConversationId:
+            url = "/v1.0/robot/groupMessages/recall"
+            post_data['openConversationId'] = openConversationId
         
-        async def _run(_message, _openConversationId, _processQueryKeys, _robotCode, _access_token, _inThreadTime):
-            _access_token = _access_token or self.access_token
-            if message:
-                _processQueryKeys = message.json()['processQueryKey']
-                _openConversationId = message.recallOpenConversationId
-            _processQueryKeys = [str(x) for x in
-                                 (_processQueryKeys if isinstance(_processQueryKeys, list) else [_processQueryKeys])]
-            if isinstance(openConversationId, Group):
-                _openConversationId = _openConversationId.conversationId
-            if _openConversationId is not None:
-                _openConversationId = str(_openConversationId)
-            if _robotCode is None:
-                _robotCode = self.config.bot.robotCode
-            post_data = {
-                "processQueryKeys": _processQueryKeys,
-                "robotCode"       : _robotCode
-            }
-            url = "/v1.0/robot/otoMessages/batchRecall"
-            if _openConversationId:
-                url = "/v1.0/robot/groupMessages/recall"
-                post_data['openConversationId'] = _openConversationId
+        async def _run(_inThreadTime):
             await asyncio.sleep(_inThreadTime)
             res = await self.api_request.post(url, json=post_data)
             return await res.json()
@@ -287,10 +283,9 @@ class Dingtalk:
         if message.recallType not in ['group', 'personal']:
             raise UnsupportedRecallType(f"The recall type '{message.recallType}' is not supported for recall")
         if not inThreadTime:
-            return await _run(message, openConversationId, processQueryKeys, robotCode, access_token, inThreadTime)
+            return await _run(inThreadTime)
         else:
-            return self.loop.create_task(
-                _run(message, openConversationId, processQueryKeys, robotCode, access_token, inThreadTime))
+            return self.loop.create_task(_run(inThreadTime))
     
     async def _send_card(
             self,
@@ -373,7 +368,8 @@ class Dingtalk:
             body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}
         resp = await self.api_request.post('/v1.0/card/instances/deliver', json=body)
         if not resp.ok:
-            raise DingtalkAPIError(f"Error while deliver the card.Code={resp.status} text={await resp.text()}")
+            errCode = (await resp.json()).get("errcode")
+            raise err_reason[errCode](f"Error while deliver the card.Code={resp.status} text={await resp.text()}")
         return outTrackId
     
     async def send_markdown_card(
@@ -1120,8 +1116,13 @@ class Dingtalk:
         async with aiohttp.ClientSession() as session:
             async with session.post(f'https://oapi.dingtalk.com/media/upload?access_token={access_token}',
                                     data={'type': file_type, 'media': f}) as resp:
-                resp = await resp.json()
-        res.mediaId = resp['media_id']
+                res_json = await resp.json()
+                if res_json.get("errcode"):
+                    raise err_reason[res_json.get("errcode")](
+                        f"Error while uploading the file.Server response: {res_json}")
+                cache.add_openapi_count()
+        
+        res.mediaId = res_json['media_id']
         return res
     
     async def download_file(self, downloadCode: Union[File, str], path: Union[Path, str]):
