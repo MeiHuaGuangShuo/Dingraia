@@ -3,6 +3,10 @@
 """
 
 
+class DingtalkAPIError(Exception):
+    code = -1
+
+
 class ConfigError(Exception):
     pass
 
@@ -19,7 +23,7 @@ class UploadFileError(Exception):
     pass
 
 
-class DownloadFileError(Exception):
+class DownloadFileError(DingtalkAPIError):
     ...
 
 
@@ -31,39 +35,39 @@ class SQLError(Exception):
     ...
 
 
-class DingtalkAPIError(Exception):
-    code = -1
-
-
-class ResourceNotFoundError(Exception):
+class ResourceNotFoundError(DingtalkAPIError):
     code = "resource.not.found"
 
 
-class WrongParameterError(Exception):
+class WrongParameterError(DingtalkAPIError):
     code = 400002
 
 
-class InvalidParameterError(Exception):
+class InvalidParameterError(DingtalkAPIError):
     code = 40035
 
 
-class InvalidUserIdError(Exception):
+class InvalidFileTypeError(DingtalkAPIError):
+    code = 40005
+
+
+class InvalidUserIdError(DingtalkAPIError):
     code = 33012
 
 
-class ApiPermissionDeniedError(Exception):
+class ApiPermissionDeniedError(DingtalkAPIError):
     code = 60011
 
 
-class IPNotInWhitelistError(Exception):
+class IPNotInWhitelistError(DingtalkAPIError):
     code = 60020
 
 
-class UserNotFoundError(Exception):
+class UserNotFoundError(DingtalkAPIError):
     code = 60121
 
 
-class APIRateLimitedError(Exception):
+class APIRateLimitedError(DingtalkAPIError):
     code = 90002
     code2 = 90018
 
@@ -71,6 +75,7 @@ class APIRateLimitedError(Exception):
 err_code_map = {
     -1                                                  : DingtalkAPIError,
     "resource.not.found"                                : ResourceNotFoundError,
+    40005: InvalidFileTypeError,
     40035                                               : InvalidParameterError,
     "param.invalid"                                     : InvalidParameterError,
     33012                                               : InvalidUserIdError,
@@ -91,5 +96,5 @@ class ErrorReason:
     
     def __getitem__(self, item):
         if item in self.err_map:
-            return self.err_map
+            return self.err_map[item]
         return DingtalkAPIError
