@@ -59,6 +59,19 @@ def set_num():
         yield i
 
 
+def get_filename(response: ClientResponse, url: str) -> str:
+    try:
+        file_name = response.headers.get('content-disposition', '').split('filename=')[-1].strip('"')
+        if file_name:
+            return file_name
+    except Exception as e:
+        logger.error(f"Failed to get filename from response: {e}")
+    finally:
+        parsed_url = urllib.parse.urlparse(url)
+        file_name = parsed_url.path.split('/')[-1]
+        return file_name
+
+
 _no = set_num()
 err_reason = ErrorReason()
 
@@ -1095,6 +1108,13 @@ class Dingtalk:
             size = f.tell()
             f.seek(0)
         else:
+            if not file.size:
+                if isinstance(file.file, str):
+                    if file.file.startswith('http'):
+                        async with self.clientSession.get(file.file) as resp:
+                            file.fileName = get_filename(resp, file.file)
+                            file.file = await resp.read()
+                            file.size = len(file.file)
             size = file.size
             file_type = file.fileType
             f = file.file

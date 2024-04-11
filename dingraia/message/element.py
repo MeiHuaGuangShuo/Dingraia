@@ -9,19 +9,6 @@ from typing import Union, BinaryIO, List
 from ..model import Member
 
 
-def get_filename(response: requests.Response, url: str) -> str:
-    try:
-        file_name = response.headers.get('content-disposition', '').split('filename=')[-1].strip('"')
-        if file_name:
-            return file_name
-    except Exception as e:
-        print(f"Failed to get filename from response: {e}")
-    
-    parsed_url = urlparse(url)
-    file_name = parsed_url.path.split('/')[-1]
-    return file_name
-
-
 class File:
     type: "File"
     
@@ -40,11 +27,9 @@ class File:
         if file:
             if isinstance(file, (Path, str)):
                 if isinstance(file, str) and file.startswith('http'):
-                    with requests.get(file) as r:
-                        f = r.content
-                        self.file = f
-                        self.size = len(f)
-                        self.fileName = get_filename(r, file)
+                    self.file = file
+                    self.size = 0
+                    self.fileName = None
                 else:
                     f = open(file, 'rb')
                     self.file = f
