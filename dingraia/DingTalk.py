@@ -1113,9 +1113,15 @@ class Dingtalk:
                 raise UploadFileSizeError("Normal file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
         if not access_token:
             access_token = self.access_token
+        data = aiohttp.FormData()
+        data.add_field('type', file_type)
+        if file.fileName:
+            data.add_field('media', f, filename=file.fileName)
+        else:
+            data.add_field('media', f)
         async with aiohttp.ClientSession() as session:
             async with session.post(f'https://oapi.dingtalk.com/media/upload?access_token={access_token}',
-                                    data={'type': file_type, 'media': f}) as resp:
+                                    data=data) as resp:
                 res_json = await resp.json()
                 if res_json.get("errcode"):
                     raise err_reason[res_json.get("errcode")](

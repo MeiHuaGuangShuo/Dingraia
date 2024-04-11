@@ -33,3 +33,11 @@ async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, 
                 ],
             ]
         ))
+    elif str(message) == "/audio":
+        await app.send_message(group, Audio(
+            "https://www.bilibili.com/audio/BV17K4y1p79T?p=1"
+        ))
+    elif str(message) == "/image":
+        await app.send_message(group, Image(
+            "https://i0.hdslb.com/bfs/album/d5d5d9d5d5.jpg"
+        ))

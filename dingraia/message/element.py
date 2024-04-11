@@ -2,16 +2,30 @@ import copy
 import hashlib
 import json
 import os
+import requests
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Union, BinaryIO, List
-
 from ..model import Member
+
+
+def get_filename(response: requests.Response, url: str) -> str:
+    try:
+        file_name = response.headers.get('content-disposition', '').split('filename=')[-1].strip('"')
+        if file_name:
+            return file_name
+    except Exception as e:
+        print(f"Failed to get filename from response: {e}")
+    
+    parsed_url = urlparse(url)
+    file_name = parsed_url.path.split('/')[-1]
+    return file_name
 
 
 class File:
     type: "File"
     
-    file: BinaryIO
+    file: Union[BinaryIO, bytes]
     
     size: int
     
@@ -21,22 +35,30 @@ class File:
     
     downloadCode: str = None
     
-    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None):
+    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None, fileName: str = None):
+        self.fileName = None
         if file:
             if isinstance(file, (Path, str)):
-                f = open(file, 'rb')
-                self.file = f
-                f.seek(0, os.SEEK_END)
-                self.size = f.tell()
-                f.seek(0)
+                if isinstance(file, str) and file.startswith('http'):
+                    with requests.get(file) as r:
+                        f = r.content
+                        self.file = f
+                        self.size = len(f)
+                        self.fileName = get_filename(r, file)
+                else:
+                    f = open(file, 'rb')
+                    self.file = f
+                    f.seek(0, os.SEEK_END)
+                    self.size = f.tell()
+                    f.seek(0)
             else:
                 self.file = file
                 if isinstance(self.file, BinaryIO):
                     self.size = len(self.file.read())
                 elif isinstance(self.file, bytes):
                     self.size = len(self.file)
+        self.fileName = fileName or self.fileName
         self.mediaId = None
-        self.fileName = None
         self.fileType = 'file'
     
     @property
@@ -101,8 +123,8 @@ class Link(BaseElement):
 
 class Image(File):
     
-    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None):
-        super().__init__(file)
+    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None, fileName: str = None):
+        super().__init__(file, fileName)
         self.fileType = 'image'
     
     @property
@@ -124,8 +146,8 @@ class Image(File):
 
 class Audio(File):
     
-    def __init__(self, file: Union[Path, BinaryIO, str] = None):
-        super().__init__(file)
+    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None, fileName: str = None):
+        super().__init__(file, fileName)
         self.fileType = 'voice'
         self.duration = None
     
@@ -149,8 +171,8 @@ class Audio(File):
 
 class Video(File):
     
-    def __init__(self, file: Union[Path, BinaryIO, str] = None):
-        super().__init__(file)
+    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None, fileName: str = None):
+        super().__init__(file, fileName)
         self.fileType = 'video'
         self.videoMediaId = None
         self.videoType = 'mp4'
