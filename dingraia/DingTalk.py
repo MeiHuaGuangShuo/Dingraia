@@ -763,7 +763,7 @@ class Dingtalk:
                                           raw['management_options']['show_history_type'],
                                           raw['management_options']['validation_type'],
                                           raw['management_options']['searchable'])
-            new_openConversationId = OpenConversationId(res['result']['open_conversation_id'])
+            new_openConversationId = OpenConversationId(dict(res['result'])['open_conversation_id'])
             if res['success']:
                 times = 0
                 while times < 3:
@@ -1180,7 +1180,7 @@ class Dingtalk:
             async with self.clientSession.get(downloadUrl) as resp:
                 with open(Path(path), 'wb') as fd:
                     async for chunk in resp.content.iter_chunked(512):
-                        fd.write(chunk)
+                        fd.write(await chunk)
             return True
         else:
             raise DownloadFileError(f"Failed to get the download URL. Response: {res}")

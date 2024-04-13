@@ -15,6 +15,15 @@ class Webhook:
         self.url = url
         self.expired_time = expired_time if 2600000000 > expired_time else expired_time / 1000
 
+    def __str__(self) -> str:
+        return self.url
+
+    def __int__(self) -> int:
+        return int(self.expired_time)
+
+    def __float__(self) -> float:
+        return self.expired_time
+
 
 class Group:
     
