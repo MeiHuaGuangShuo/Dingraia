@@ -89,15 +89,17 @@ class Dingtalk:
     stream_checker = {}
     """用于检测重复的回调, 键为任务名, 值为容纳50个StreamID的列表"""
     stream_connect: CustomStreamConnect = None
-    
+
     def __init__(self, config: Config = None):
         if Dingtalk.config is None:
             Dingtalk.config = config
             cache.enable = config.useDatabase
             self.stream_connect = config.customStreamConnect
-    
-    async def send_message(self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
-                           headers=None):
+
+    async def send_message(
+            self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
+            headers=None
+    ):
         """发送普通的文本信息
         
         Args:
@@ -147,7 +149,7 @@ class Dingtalk:
                         "content": str(msg)
                     }
                 }
-            
+
             send_data['robotCode'] = self.config.bot.robotCode
             send_data['openConversationId'] = str(target.openConversationId)
             headers['x-acs-dingtalk-access-token'] = self.access_token
@@ -156,30 +158,32 @@ class Dingtalk:
                 ats: List[At] = msg.include(At)
                 at = reduce(lambda x, y: x + y, ats)
                 send_data["at"] = at.data
-                def clean_at(at, send_data):
+
+                def clean_at(_send_data):
                     at_s = []
                     for v in at.data.values():
                         for m in v:
                             at_s.append("@" + m)
-                    send_data = json.dumps(send_data)
+                    _send_data = json.dumps(_send_data)
                     for s in at_s:
-                        send_data = send_data.replace(s, "")
+                        _send_data = _send_data.replace(s, "")
                         if isinstance(msg, MessageChain):
                             msg.display = msg.display.replace(s, "")
-                    send_data = json.loads(send_data)
-                    send_data.pop("at")
-                    return at, send_data
+                    _send_data = json.loads(_send_data)
+                    _send_data.pop("at")
+                    return _send_data
+
                 if isinstance(target, (OpenConversationId, Member, Webhook, Group)):
                     if isinstance(target, Group):
                         if target.webhook._type == Member:
-                            at, send_data = clean_at(at, send_data)
+                            send_data = clean_at(send_data)
                     if isinstance(target, Member):
-                        at, send_data = clean_at(at, send_data)
+                        send_data = clean_at(send_data)
                     if isinstance(target, OpenConversationId):
-                        at, send_data = clean_at(at, send_data)
+                        send_data = clean_at(send_data)
                     if isinstance(target, Webhook):
                         if target._type == Member:
-                            at, send_data = clean_at(at, send_data)
+                            send_data = clean_at(send_data)
         if not target:
             if not self.config.bot.GroupWebhookSecureKey or not self.config.bot.GroupWebhookAccessToken:
                 raise ConfigError("Not GroupWebhookSecureKey or GroupWebhookAccessToken provided!")
@@ -255,9 +259,11 @@ class Dingtalk:
             else:
                 delog.success(f"Success!", no=40)
             return response
-    
-    def sendMessage(self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
-                    headers=None):
+
+    def sendMessage(
+            self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
+            headers=None
+    ):
         """发送普通的文本信息, 对于异步函数send_message的同步包装
         
         Args:
@@ -270,7 +276,7 @@ class Dingtalk:
 
         """
         return asyncio.run_coroutine_threadsafe(self.send_message(target, msg, headers), self.loop).result()
-    
+
     async def recall_message(
             self,
             message: Response = None,
@@ -312,19 +318,19 @@ class Dingtalk:
         if openConversationId:
             url = "/v1.0/robot/groupMessages/recall"
             post_data['openConversationId'] = openConversationId
-        
+
         async def _run(_inThreadTime):
             await asyncio.sleep(_inThreadTime)
             res = await self.api_request.post(url, json=post_data)
             return await res.json()
-        
+
         if message.recallType not in ['group', 'personal']:
             raise UnsupportedRecallType(f"The recall type '{message.recallType}' is not supported for recall")
         if not inThreadTime:
             return await _run(inThreadTime)
         else:
             return self.loop.create_task(_run(inThreadTime))
-    
+
     async def _send_card(
             self,
             cardTemplateId,
@@ -370,7 +376,7 @@ class Dingtalk:
             "callbackType"         : "STREAM"
         }
         raise ValueError("未完成")
-    
+
     async def send_card(
             self,
             target: Union[OpenConversationId, Group, Member],
@@ -409,7 +415,7 @@ class Dingtalk:
             errCode = (await resp.json()).get("errcode")
             raise err_reason[errCode](f"Error while deliver the card.Code={resp.status} text={await resp.text()}")
         return outTrackId
-    
+
     async def send_markdown_card(
             self,
             target: Union[OpenConversationId, Group, Member],
@@ -455,7 +461,7 @@ class Dingtalk:
             "callbackType"         : "STREAM"
         }
         return await self.send_card(target=target, cardData=data, outTrackId=outTrackId)
-    
+
     async def update_card(self, outTrackId, cardParamData):
         if isinstance(cardParamData, Markdown):
             cardParamData = {
@@ -472,20 +478,21 @@ class Dingtalk:
         if not resp.ok:
             raise DingtalkAPIError(f"Error while update the card.Code={resp.status} text={await resp.text()}")
         return await resp.json()
-    
-    async def create_group(self,
-                           name,
-                           templateId,
-                           ownerUserId,
-                           icon,
-                           userIds: list = None,
-                           subAdminIds: list = None,
-                           showHistory=False,
-                           validation=True,
-                           searchable=False,
-                           UUID: str = str(uuid.uuid1()),
-                           access_token: str = None
-                           ):
+
+    async def create_group(
+            self,
+            name,
+            templateId,
+            ownerUserId,
+            icon,
+            userIds: list = None,
+            subAdminIds: list = None,
+            showHistory=False,
+            validation=True,
+            searchable=False,
+            UUID: str = str(uuid.uuid1()),
+            access_token: str = None
+    ):
         userIds = userIds or [ownerUserId]
         userIds = [str(x) for x in userIds]
         userIds = ",".join(userIds)
@@ -523,7 +530,7 @@ class Dingtalk:
         if not res['success']:
             logger.error(f"Cannot create the group!Response: {json.dumps(res, ensure_ascii=False, indent=4)}")
         return res
-    
+
     async def get_group(self, openConversationId: Union[OpenConversationId, Group, str], access_token: str = None):
         """获取场景群信息, `2` API 调用量
         
@@ -555,15 +562,15 @@ class Dingtalk:
                 res='json')
         else:
             users_res = await self.oapi_request.jpost('/topapi/im/chat/scenegroup/member/get',
-                                                json={'open_conversation_id': openConversationId, "size": 1000,
-                                                      "cursor"              : 0})
+                                                      json={'open_conversation_id': openConversationId, "size": 1000,
+                                                            "cursor"              : 0})
             users_res = users_res.get('result', {})
         res: dict = res['result']
         res['user_ids'] = users_res.get('member_user_ids')
         res['staff_id_nick_map'] = users_res.get('staff_id_nick_map')
         res['success'] = True
         return res
-    
+
     async def get_depts(self, deptId: str = "1", access_token: str = None):
         """获取部门ID
         
@@ -581,7 +588,7 @@ class Dingtalk:
         else:
             res = await self.oapi_request.jpost('/topapi/v2/department/listsub', json={'dept_id': deptId})
         return res
-    
+
     async def get_user(self, userStaffId: Union[Member, str], language: str = "zh_CN", access_token: str = None):
         """获取用户详细信息
         
@@ -602,7 +609,7 @@ class Dingtalk:
             res = await self.oapi_request.jpost("/topapi/v2/user/get",
                                                 json={"language": language, "userid": userStaffId})
         return res
-    
+
     async def remove_user(self, userStaffId: Union[Member, str], access_token: str = None):
         """从组织中直接移除用户
         
@@ -622,7 +629,7 @@ class Dingtalk:
         else:
             res = await self.oapi_request.jpost("/topapi/v2/user/delete", json={"userid": userStaffId})
         return res
-    
+
     async def create_user(
             self,
             name: str,
@@ -700,7 +707,7 @@ class Dingtalk:
             data['login_email'] = loginEmail
         res = await self.oapi_request.jpost('/topapi/v2/user/create', json=data)
         return res
-    
+
     async def update_user(
             self,
             userId,
@@ -764,7 +771,7 @@ class Dingtalk:
             data['force_update_fields'] = ",".join([str(x) for x in force_update_fields])
         res = await self.oapi_request.jpost('/topapi/v2/user/update', json=data)
         return res
-    
+
     async def mirror_group(self, openConversationId: Union[OpenConversationId, Group, str]):
         """复制群信息和群成员到一个新群. 群必须是场景群
         
@@ -812,7 +819,7 @@ class Dingtalk:
         else:
             res = raw
         return res
-    
+
     async def update_group(
             self,
             openConversationId: Union[OpenConversationId, Group, str],
@@ -835,7 +842,8 @@ class Dingtalk:
             group_live_switch: bool = None,
             members_to_admin_chat: bool = None,
             plugin_customize_verify: bool = None,
-            access_token: str = None):
+            access_token: str = None
+    ):
         """
         
         Args:
@@ -910,7 +918,7 @@ class Dingtalk:
             res = await self.oapi_request.jpost("/topapi/im/chat/scenegroup/update",
                                                 json=data)
         return res
-    
+
     async def change_group_title(self, openConversationId: Union[OpenConversationId, Group, str], title: str):
         """
         
@@ -922,8 +930,10 @@ class Dingtalk:
 
         """
         return await self.update_group(openConversationId, title=title)
-    
-    async def change_group_owner(self, openConversationId: Union[OpenConversationId, Group, str], userStaffId: Union[Member, str]):
+
+    async def change_group_owner(
+            self, openConversationId: Union[OpenConversationId, Group, str], userStaffId: Union[Member, str]
+    ):
         """
         
         Args:
@@ -934,15 +944,17 @@ class Dingtalk:
 
         """
         return await self.update_group(openConversationId, owner_user_id=userStaffId)
-    
+
     async def mute_all(self, openConversationId: Union[OpenConversationId, Group, str]):
         return await self.update_group(openConversationId, chat_banned_type=True)
-    
+
     async def unmute_all(self, openConversationId: Union[OpenConversationId, Group, str]):
         return await self.update_group(openConversationId, chat_banned_type=False)
-    
-    async def kick_member(self, openConversationId: Union[OpenConversationId, Group, str],
-                          memberStaffIds: Union[Member, str, List[Union[Member, str]]]):
+
+    async def kick_member(
+            self, openConversationId: Union[OpenConversationId, Group, str],
+            memberStaffIds: Union[Member, str, List[Union[Member, str]]]
+    ):
         """从群组中踢出一名成员. 群组必须是场景群
         
         Args:
@@ -959,9 +971,11 @@ class Dingtalk:
                                             json={"open_conversation_id": openConversationId,
                                                   "user_ids"            : memberStaffIds})
         return res
-    
-    async def add_member(self, openConversationId: Union[OpenConversationId, Group, str],
-                         memberStaffIds: Union[Member, str, List[Union[Member, str]]]):
+
+    async def add_member(
+            self, openConversationId: Union[OpenConversationId, Group, str],
+            memberStaffIds: Union[Member, str, List[Union[Member, str]]]
+    ):
         """添加一个成员到群组. 群组必须是场景群
         
         Args:
@@ -978,9 +992,11 @@ class Dingtalk:
                                             json={"open_conversation_id": openConversationId,
                                                   "user_ids"            : memberStaffIds})
         return res
-    
-    async def set_admin(self, openConversationId: Union[OpenConversationId, Group, str],
-                        memberStaffIds: Union[Member, str, List[Union[Member, str]]], set_admin: bool = True):
+
+    async def set_admin(
+            self, openConversationId: Union[OpenConversationId, Group, str],
+            memberStaffIds: Union[Member, str, List[Union[Member, str]]], set_admin: bool = True
+    ):
         """设置一个成员是否为管理员. 群组必须是场景群
         
         Args:
@@ -997,7 +1013,7 @@ class Dingtalk:
                                           json={"openConversationId": openConversationId, "userIds": memberStaffIds,
                                                 'role'              : 2 if set_admin else 3})
         return res
-    
+
     async def mute_member(
             self,
             openConversationId: Union[OpenConversationId, Group, str],
@@ -1025,14 +1041,14 @@ class Dingtalk:
                                                "muteDuration"      : muteTime * 1000
                                            })
         return res
-    
+
     async def unmute_member(
             self,
             openConversationId: Union[OpenConversationId, Group, str],
             memberStaffIds: Union[Member, str, List[Union[Member, str]]]
     ):
         return await self.mute_member(openConversationId, memberStaffIds, 0)
-    
+
     async def set_off_duty_prompt(
             self,
             text: str = "人家今天下班了呢~请晚些再来找我吧",
@@ -1083,21 +1099,21 @@ class Dingtalk:
         else:
             res = await self.api_request.jpost(url, json=data)
         return res
-    
+
     @staticmethod
     class log:
         def info(*mes):
             logger.info(*mes)
-        
+
         def debug(*mes):
             logger.debug(*mes)
-        
+
         def warning(*mes):
             logger.warning(*mes)
-        
+
         def success(*mes):
             logger.success(*mes)
-    
+
     async def upload_file(self, file: Union[Path, str, File], access_token: str = None) -> File:
         """上传一个文件到钉钉并获取mediaId
         
@@ -1172,10 +1188,10 @@ class Dingtalk:
                     raise err_reason[res_json.get("errcode")](
                         f"Error while uploading the file.Server response: {res_json}")
                 cache.add_openapi_count()
-        
+
         res.mediaId = res_json['media_id']
         return res
-    
+
     async def download_file(self, downloadCode: Union[File, str], path: Union[Path, str]):
         """下载机器人接收的文件, 1 API 消耗量
         文档: https://open.dingtalk.com/document/isvapp/download-the-file-content-of-the-robot-receiving-message
@@ -1209,11 +1225,11 @@ class Dingtalk:
             return True
         else:
             raise DownloadFileError(f"Failed to get the download URL. Response: {res}")
-    
+
     def run_coroutine(self, coro):
         """使用内置的Loop运行异步函数并返回结果"""
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
-    
+
     @property
     def access_token(self):
         """当前企业的AccessToken, 会在调用时自动更新"""
@@ -1225,10 +1241,10 @@ class Dingtalk:
             else:
                 self._access_token.refresh()
             return self._access_token.token
-    
+
     channel = Channel.current()
     callbacks = []
-    
+
     @logger.catch
     async def bcc(self, data: dict):
         delog.info(json.dumps(data, indent=2, ensure_ascii=False), no=50)
@@ -1244,7 +1260,7 @@ class Dingtalk:
             logger.warning("无法解包！")
             return ""
         return _e.get('returns') or {'err': 0}
-    
+
     @logger.catch
     def disPackage(self, data: dict) -> dict:
         if "conversationType" in data:
@@ -1384,7 +1400,7 @@ class Dingtalk:
                 "event_type": [None],
                 "returns"   : ""
             }
-    
+
     @classmethod
     def get_sign(cls, secure_key: str = None):
         if secure_key is None:
@@ -1398,11 +1414,11 @@ class Dingtalk:
         sign = base64.b64encode(sign)
         sign = urllib.parse.quote_plus(sign)
         return sign, timestamp, secure_key
-    
+
     @staticmethod
     def get_api_counts():
         return cache.get_api_counts()
-    
+
     @staticmethod
     async def _send(url, send_data, headers=None):
         delog.info(f"发送中:{url}", no=40)
@@ -1433,64 +1449,64 @@ class Dingtalk:
                 else:
                     logger.error(f"Failed to send the message!err_msg：{resp}, send_data: {send_data}")
                     return [False, resp]
-    
+
     class _api_request:
-        
+
         def __init__(self, clientSession: ClientSession, access_token: Union[AccessToken, str]):
             self.clientSession = clientSession
             self.access_token = access_token
-        
+
         async def get(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
             await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.get(self._url_resolve(urlPath), headers=headers, **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def post(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
             await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.post(self._url_resolve(urlPath), headers=headers, **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def put(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
             await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.put(self._url_resolve(urlPath), headers=headers, **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def delete(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
             await self.before_request(urlPath=urlPath, headers=headers, kwargs=kwargs)
             resp = await self.clientSession.delete(self._url_resolve(urlPath), headers=headers, **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def jget(self, urlPath, *, headers=None, **kwargs) -> dict:
             resp = await self.get(urlPath=urlPath, headers=headers, **kwargs)
             return await resp.json()
-        
+
         async def jpost(self, urlPath, *, headers=None, **kwargs) -> dict:
             resp = await self.post(urlPath=urlPath, headers=headers, **kwargs)
             return await resp.json()
-        
+
         async def jput(self, urlPath, *, headers=None, **kwargs) -> dict:
             resp = await self.put(urlPath=urlPath, headers=headers, **kwargs)
             return await resp.json()
-        
+
         async def jdelete(self, urlPath, *, headers=None, **kwargs) -> dict:
             resp = await self.delete(urlPath=urlPath, headers=headers, **kwargs)
             return await resp.json()
-        
+
         @staticmethod
         def _url_resolve(urlPath: str) -> str:
             if "http" not in urlPath and not urlPath.startswith('/'):
                 urlPath = '/' + urlPath
             url = ("https://api.dingtalk.com" + urlPath) if "https" not in urlPath else urlPath
             return url
-        
+
         def _header_resolve(self, headers: dict) -> dict:
             if headers is None:
                 headers = {}
@@ -1521,53 +1537,53 @@ class Dingtalk:
                     cache.add_openapi_count()
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
-    
+
     class _oapi_request:
-        
+
         def __init__(self, clientSession: ClientSession, access_token: Union[AccessToken, str]):
             self.clientSession = clientSession
             self.access_token = access_token
-        
+
         async def get(self, urlPath: str, **kwargs) -> ClientResponse:
             await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.get(self._url_resolve(urlPath), **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def post(self, urlPath, **kwargs) -> ClientResponse:
             await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.post(self._url_resolve(urlPath), **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def put(self, urlPath, **kwargs) -> ClientResponse:
             await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.put(self._url_resolve(urlPath), **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def delete(self, urlPath, **kwargs) -> ClientResponse:
             await self.before_request(urlPath=urlPath, kwargs=kwargs)
             resp = await self.clientSession.delete(self._url_resolve(urlPath), **kwargs)
             await self.after_request(resp)
             return resp
-        
+
         async def jget(self, urlPath, **kwargs) -> dict:
             resp = await self.get(urlPath=urlPath, **kwargs)
             return await resp.json()
-        
+
         async def jpost(self, urlPath, **kwargs) -> dict:
             resp = await self.post(urlPath=urlPath, **kwargs)
             return await resp.json()
-        
+
         async def jput(self, urlPath, **kwargs) -> dict:
             resp = await self.put(urlPath=urlPath, **kwargs)
             return await resp.json()
-        
+
         async def jdelete(self, urlPath, **kwargs) -> dict:
             resp = await self.delete(urlPath=urlPath, **kwargs)
             return await resp.json()
-        
+
         def _url_resolve(self, urlPath: str):
             if "http" not in urlPath and not urlPath.startswith('/'):
                 urlPath = '/' + urlPath
@@ -1601,7 +1617,7 @@ class Dingtalk:
                     cache.add_openapi_count()
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
-    
+
     def start(self, flask_app: "flask.Flask" = None, **kwargs):
         """
         
@@ -1628,7 +1644,7 @@ class Dingtalk:
         self.loop.run_until_complete(channel.radio(LoadComplete, self, async_await=True))
         if flask_app:
             from flask import request, jsonify
-            
+
             @logger.catch
             @flask_app.route('/', methods=["POST"])
             async def receive_data():
@@ -1638,7 +1654,7 @@ class Dingtalk:
                         return jsonify(res)
                     else:
                         return res
-            
+
             flask_app.run(**kwargs)
             if self.clientSession:
                 self.loop.create_task(self.clientSession.close())
@@ -1646,25 +1662,25 @@ class Dingtalk:
             signal.signal(signal.SIGINT, exit)
             if not self.loop.is_running():
                 self.loop.run_forever()
-    
+
     async def _init_console(self):
         self.clientSession = ClientSession()
         self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
         self.api_request = self._api_request(self.clientSession, self._access_token)
         self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
-    
+
     def init_console(self):
         self.run_coroutine(self._init_console())
-    
+
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
         return self._loop
-    
+
     @staticmethod
     def _start_topic():
-        
+
         def get_dist_map() -> Dict[str, str]:
             """获取与项目相关的发行字典"""
             dist_map: Dict[str, str] = {}
@@ -1676,7 +1692,7 @@ class Dingtalk:
                 if name.startswith(('dingraia', 'websocket', 'asyncio', 'flask')):
                     dist_map[name] = max(version, dist_map.get(name, ""))
             return dist_map
-        
+
         try:
             x, y = os.get_terminal_size().columns, os.get_terminal_size().lines
         except:
@@ -1696,7 +1712,7 @@ class Dingtalk:
             DEBUG = "<yellow>Warning</>: <red>Debug mode is on!</>\n"
         logger.opt(colors=True).info("\n" * 2 + __topic + DINGRAIA_ASCII + f"{ver}\n\n" + announcement + "\n" + DEBUG)
         logger.info("Preparing loading...")
-    
+
     def _create_stream(self, stream: Stream):
         """创建并开始一个异步Stream任务. 不推荐自行调用
         
@@ -1707,7 +1723,7 @@ class Dingtalk:
             None
 
         """
-        
+
         def get_host_ip():
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             try:
@@ -1718,7 +1734,7 @@ class Dingtalk:
             finally:
                 s.close()
             return ip
-        
+
         async def open_connection(task_name: str, url: str = self.WS_CONNECT_URL):
             logger.info(f'[{task_name}] Requesting stream')
             request_headers = {
@@ -1750,11 +1766,11 @@ class Dingtalk:
                 if response.status_code == 401:
                     logger.warning(f"[{task_name}] The AppKey or AppSecret maybe inaccurate")
                     await self.stop()
-                    
+
                     return False
                 return None
             return response.json()
-        
+
         async def route_message(json_message, websocket: websockets.WebSocketServer, task_name: str):
             result = ''
             try:
@@ -1807,7 +1823,7 @@ class Dingtalk:
             except Exception as err:
                 logger.exception(f"[{task_name}] Error happened while handing the message", err)
             return result
-        
+
         async def main_stream(task_name: str):
             while ...:
                 if not self.stream_connect:
@@ -1828,7 +1844,7 @@ class Dingtalk:
                             raise ValueError(f"Incorrect signer param, consider use None to skip sign")
                     else:
                         connection = {"endpoint": "Pass", "ticket": "Pass"}
-                
+
                 if not connection:
                     if connection is None:
                         logger.error(f'[{task_name}] Open websocket connection failed')
@@ -1873,9 +1889,9 @@ class Dingtalk:
                     logger.exception(err)
                     logger.warning(f"[{task_name}] The stream connection will be reconnected after 5 seconds")
                     await asyncio.sleep(5)
-            
+
             logger.info(f"[{task_name}] Stream connection was stopped.")
-        
+
         try:
             no = next(_no)
             name = f"#{no} Main Stream"
@@ -1887,7 +1903,7 @@ class Dingtalk:
             # 为了使用序号所以不会使用内置的create_task
         except asyncio.exceptions.CancelledError:
             logger.warning("Program forced to be exit!")
-    
+
     def create_task(self, coroutine: Coroutine, name: str = "Task", show_info=True):
         """创建一个异步任务, 此任务会在stop函数被调用时取消
         
@@ -1906,7 +1922,7 @@ class Dingtalk:
         if show_info:
             logger.info(f"Create async task [{name}]")
         return task, name
-    
+
     async def stop(self, waitForSignal=False):
         if waitForSignal:
             while not exit_signal:
@@ -1929,7 +1945,7 @@ class Dingtalk:
                     else:
                         logger.success(f"Task [{name}] canceled successfully")
         self.loop.stop()
-    
+
     async def coroutine_watcher(self, function, *args, **kwargs):
         stop = False
         stop_count = 0
@@ -1956,20 +1972,20 @@ class Dingtalk:
                     else:
                         stop = True
                         break
-    
+
     @staticmethod
     def _openConversationId2str(openConversationId: Union[OpenConversationId, Group, str]) -> str:
         if isinstance(openConversationId, Group):
             openConversationId = openConversationId.openConversationId
         return str(openConversationId)
-    
+
     @staticmethod
     def _staffId2str(staffId: Union[Member, str]) -> str:
         if isinstance(staffId, Member):
             staffId = staffId.staffid
         staffId = str(staffId)
         return staffId
-    
+
     @staticmethod
     def _staffId2list(staffId: Union[Member, list, str]) -> list:
         if isinstance(staffId, list):
@@ -1979,7 +1995,7 @@ class Dingtalk:
         else:
             staffId = [str(staffId)]
         return staffId
-    
+
     def _file2mediaId(self, file: Union[File, str]) -> str:
         if isinstance(file, File):
             if not file.mediaId:
