@@ -152,9 +152,34 @@ class Dingtalk:
             send_data['openConversationId'] = str(target.openConversationId)
             headers['x-acs-dingtalk-access-token'] = self.access_token
         if isinstance(msg, MessageChain):
-            if ats := msg.include(At):
+            if msg.include(At):
+                ats: List[At] = msg.include(At)
                 at = reduce(lambda x, y: x + y, ats)
                 send_data["at"] = at.data
+                def clean_at(at, send_data):
+                    at_s = []
+                    for v in at.data.values():
+                        for m in v:
+                            at_s.append("@" + m)
+                    send_data = json.dumps(send_data)
+                    for s in at_s:
+                        send_data = send_data.replace(s, "")
+                        if isinstance(msg, MessageChain):
+                            msg.display = msg.display.replace(s, "")
+                    send_data = json.loads(send_data)
+                    send_data.pop("at")
+                    return at, send_data
+                if isinstance(target, (OpenConversationId, Member, Webhook, Group)):
+                    if isinstance(target, Group):
+                        if target.webhook._type == Member:
+                            at, send_data = clean_at(at, send_data)
+                    if isinstance(target, Member):
+                        at, send_data = clean_at(at, send_data)
+                    if isinstance(target, OpenConversationId):
+                        at, send_data = clean_at(at, send_data)
+                    if isinstance(target, Webhook):
+                        if target._type == Member:
+                            at, send_data = clean_at(at, send_data)
         if not target:
             if not self.config.bot.GroupWebhookSecureKey or not self.config.bot.GroupWebhookAccessToken:
                 raise ConfigError("Not GroupWebhookSecureKey or GroupWebhookAccessToken provided!")

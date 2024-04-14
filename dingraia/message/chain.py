@@ -1,6 +1,4 @@
-﻿from typing import Any, TypeVar
-
-from typing_extensions import Self
+﻿from typing import Any, TypeVar, List
 
 from .element import At
 
@@ -15,7 +13,7 @@ class MessageChain:
         if at is not None:
             self.mes += [At(at_id) for at_id in at]
     
-    def include(self, __obj: type) -> Self:
+    def include(self, __obj: _T) -> List[_T]:
         return self.get(__obj)  # __class__([i for i in self.mes if isinstance(i, __obj)])
     
     def get_first(self, __obj: _T) -> _T:

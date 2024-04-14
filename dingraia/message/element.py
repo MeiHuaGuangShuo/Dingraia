@@ -382,8 +382,12 @@ class At:
     
     def __add__(self, other):
         to = copy.deepcopy(self)
-        for i in other.data["atUserIds"]:
-            to.data["atUserIds"].append(i)
+        if "atUserIds" in other.data:
+            for i in other.data["atUserIds"]:
+                to.data["atUserIds"].append(i)
+        elif "atMobiles" in other.data:
+            for i in other.data["atMobiles"]:
+                to.data["atMobiles"].append(i)
         return to
 
 
