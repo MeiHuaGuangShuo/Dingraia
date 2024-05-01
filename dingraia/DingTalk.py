@@ -1618,17 +1618,24 @@ class Dingtalk:
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
 
-    def start(self, port: int = None, **kwargs):
+    def start(self, port: int = None, routes: List[web.RouteDef] = None):
         """
         
         Args:
-            port: 你的 Flask app 对象
-            **kwargs: 传递给 Flask 的参数
+            port: 启动端口
+            routes: 路由列表
 
         Returns:
             None
 
         """
+        if routes is None:
+            routes = []
+        for r in routes:
+            if r.method == "POST" and r.path == "/":
+                raise ValueError("请不要在路由列表中添加根路径的POST路由！")
+            if not isinstance(r, web.RouteDef):
+                raise ValueError(f"路由列表中存在非web.RouteDef类型对象: {r}")
         Channel().set_channel()
         Saya().set_channel()
         self.clientSession = ClientSession()
@@ -1655,7 +1662,7 @@ class Dingtalk:
                     else:
                         return web.Response(body=res)
 
-            async def access_logger(app, handler):
+            async def access_logger(_, handler):
                 async def middleware_handler(request: web.Request):
                     clientIp = request.headers.get("CF-Connecting-IP", request.headers.get("X-Real-IP", request.remote))
                     ua = request.headers.get('User-Agent')
@@ -1678,7 +1685,7 @@ class Dingtalk:
 
             async def start_server():
                 app = web.Application(middlewares=[access_logger])
-                app.add_routes([web.post('/', receive_data)])
+                app.add_routes([web.post('/', receive_data)] + routes)
                 runner = web.AppRunner(app)
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
