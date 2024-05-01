@@ -13,7 +13,7 @@ from typing import Dict, Coroutine, Literal
 
 import aiohttp
 import websockets
-from aiohttp import ClientSession, ClientResponse
+from aiohttp import ClientSession, ClientResponse, web
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -47,7 +47,7 @@ DINGRAIA_ASCII = r"""
 ANNOUNCEMENT = "See https://dingraia.gitbook.io/dingraia for documents"
 
 try:
-    is_debug = os.path.exists("dingraia_debug.mode")
+    is_debug = os.path.exists("dingraia_debug.mode") or os.environ.get("DEBUG") is not None
 except:
     is_debug = False
 
@@ -1618,11 +1618,11 @@ class Dingtalk:
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
 
-    def start(self, flask_app: "flask.Flask" = None, **kwargs):
+    def start(self, port: int = None, **kwargs):
         """
         
         Args:
-            flask_app: 你的 Flask app 对象
+            port: 你的 Flask app 对象
             **kwargs: 传递给 Flask 的参数
 
         Returns:
@@ -1636,32 +1636,59 @@ class Dingtalk:
         self.api_request = self._api_request(self.clientSession, self._access_token)
         self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
         self._start_topic()
+        logger.info("Preparing loading...")
         if self.config.stream:
             logger.info(f"Loading {len(self.config.stream)} stream task{'s' if len(self.config.stream) > 1 else ''}")
             for stream in self.config.stream:
                 self._create_stream(stream)
-            self.loop.create_task(self.stop(True))
+        self.loop.create_task(self.stop(True))
         self.loop.run_until_complete(channel.radio(LoadComplete, self, async_await=True))
-        if flask_app:
-            from flask import request, jsonify
+        logger.info("Load complete.")
+        if port:
 
             @logger.catch
-            @flask_app.route('/', methods=["POST"])
-            async def receive_data():
-                res = await self.bcc(request.json)
+            async def receive_data(request: web.Request):
+                res = await self.bcc(await request.json())
                 if res:
                     if isinstance(res, dict):
-                        return jsonify(res)
+                        return web.json_response(res)
                     else:
-                        return res
+                        return web.Response(body=res)
 
-            flask_app.run(**kwargs)
-            if self.clientSession:
-                self.loop.create_task(self.clientSession.close())
-        else:
-            signal.signal(signal.SIGINT, exit)
-            if not self.loop.is_running():
-                self.loop.run_forever()
+            async def access_logger(app, handler):
+                async def middleware_handler(request: web.Request):
+                    clientIp = request.headers.get("CF-Connecting-IP", request.headers.get("X-Real-IP", request.remote))
+                    ua = request.headers.get('User-Agent')
+                    http_version = f"HTTP/{request.version.major}.{request.version.minor}"
+                    req_path = (request.path + "?" + request.query_string) if request.query_string else request.path
+
+                    # 记录访问日志
+                    try:
+                        response = await handler(request)
+                        logger.info(f"{clientIp} {request.method} {req_path} {http_version} {response.status} "
+                                    f"{request.content_length} \"{ua}\"")
+                        return response
+                    except Exception as e:
+                        logger.exception(e)
+                        logger.error(
+                            f"{clientIp} {request.method} {req_path} {http_version} 500 {ua}")
+                        return web.Response(status=500)
+
+                return middleware_handler
+
+            async def start_server():
+                app = web.Application(middlewares=[access_logger])
+                app.add_routes([web.post('/', receive_data)])
+                runner = web.AppRunner(app)
+                await runner.setup()
+                site = web.TCPSite(runner, '0.0.0.0', port)
+                await site.start()
+
+            self.create_task(start_server(), name="Aiohttp.WebServer")
+            # self.async_tasks.append(self.loop.create_task(start_server()))
+        signal.signal(signal.SIGINT, exit)
+        if not self.loop.is_running():
+            self.loop.run_forever()
 
     async def _init_console(self):
         self.clientSession = ClientSession()
@@ -1711,7 +1738,6 @@ class Dingtalk:
         if is_debug:
             DEBUG = "<yellow>Warning</>: <red>Debug mode is on!</>\n"
         logger.opt(colors=True).info("\n" * 2 + __topic + DINGRAIA_ASCII + f"{ver}\n\n" + announcement + "\n" + DEBUG)
-        logger.info("Preparing loading...")
 
     def _create_stream(self, stream: Stream):
         """创建并开始一个异步Stream任务. 不推荐自行调用
