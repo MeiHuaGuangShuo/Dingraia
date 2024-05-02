@@ -7,6 +7,7 @@ import inspect
 import signal
 import socket
 import urllib.parse
+from urllib.parse import urlencode, urljoin
 import uuid
 from functools import reduce
 from typing import Dict, Coroutine, Literal
@@ -14,6 +15,7 @@ from typing import Dict, Coroutine, Literal
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
+from deprecation import deprecated, fail_if_not_removed
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -22,6 +24,7 @@ from .event import MessageEvent
 from .event.event import *
 from .event.message import *
 from .exceptions import *
+from .http_page import *
 from .message.chain import MessageChain
 from .message.element import *
 from .model import Group, Webhook
@@ -77,8 +80,9 @@ err_reason = ErrorReason()
 
 
 class Dingtalk:
-    WS_CONNECT_HOST = "https://api.dingtalk.com"
-    WS_CONNECT_URL = WS_CONNECT_HOST + "/v1.0/gateway/connections/open"
+    WS_CONNECT_HOST: str = "https://api.dingtalk.com"
+    WS_CONNECT_URL: str = WS_CONNECT_HOST + "/v1.0/gateway/connections/open"
+    HOST: str = None
     clientSession: ClientSession = None
     config: Config = None
     _loop: asyncio.AbstractEventLoop = None
@@ -1049,6 +1053,40 @@ class Dingtalk:
     ):
         return await self.mute_member(openConversationId, memberStaffIds, 0)
 
+    async def login_handler(self, request: web.Request):
+        data = request.query
+
+    async def check_login_status(self, request: web.Request):
+        data = request.query
+        if 'authCode' in data:  # Success
+            code = data['authCode']
+            if 'redict' in data:
+                return web.HTTPFound(data['redict'])
+        else:
+            ...
+
+    async def get_login_url(self, redirect_url: str = None, exclusiveLogin: bool = False):
+        if redirect_url is None:
+            if not self.HOST:
+                raise ValueError("Host muse be specific")
+            redirect_url = urljoin(self.HOST, f"/login/checkStatus")
+        url = f"https://login.dingtalk.com/oauth2/auth"
+        data = {
+            "redirect_uri" : redirect_url,
+            "response_type": "code",
+            "client_id"    : self.config.bot.appKey,
+            "scope"        : "openid corpid",
+            "prompt"       : "consent",
+            "corpId"       : self.config.bot.appKey
+        }
+        if exclusiveLogin:
+            data["exclusiveLogin"] = True
+            data["exclusiveCorpId"] = self.config.bot.appKey
+        query_string = urlencode(data)
+        return urljoin(url, '?' + query_string)
+
+    # async def
+
     async def set_off_duty_prompt(
             self,
             text: str = "人家今天下班了呢~请晚些再来找我吧",
@@ -1420,6 +1458,7 @@ class Dingtalk:
         return cache.get_api_counts()
 
     @staticmethod
+    @deprecated(deprecated_in="2.0.2", removed_in="3.0", details="New method available")
     async def _send(url, send_data, headers=None):
         delog.info(f"发送中:{url}", no=40)
         if url and "http" not in url:
@@ -1665,27 +1704,42 @@ class Dingtalk:
             async def access_logger(_, handler):
                 async def middleware_handler(request: web.Request):
                     clientIp = request.headers.get("CF-Connecting-IP", request.headers.get("X-Real-IP", request.remote))
-                    ua = request.headers.get('User-Agent')
+                    ua = request.headers.get('User-Agent', '-')
                     http_version = f"HTTP/{request.version.major}.{request.version.minor}"
                     req_path = (request.path + "?" + request.query_string) if request.query_string else request.path
-
+                    check_ua = await self.ua_checker(ua, 'dingtalk-user')
+                    if check_ua is not None:
+                        logger.warning(
+                            f"{clientIp} {request.method} {req_path} {http_version} "
+                            f"{check_ua.status} \"{ua}\" Denied")
+                        return check_ua
                     # 记录访问日志
                     try:
                         response = await handler(request)
                         logger.info(f"{clientIp} {request.method} {req_path} {http_version} {response.status} "
                                     f"{request.content_length} \"{ua}\"")
                         return response
-                    except Exception as e:
-                        logger.exception(e)
+                    except web.HTTPException as http_err:
                         logger.error(
-                            f"{clientIp} {request.method} {req_path} {http_version} 500 {ua}")
+                            f"{clientIp} {request.method} {req_path} {http_version} "
+                            f"{http_err.status_code} {http_err.reason} \"{ua}\"")
+                        return web.Response(status=http_err.status_code)
+                    except Exception as err:
+                        logger.error(
+                            f"{clientIp} {request.method} {req_path} {http_version} "
+                            f"500 {err.__class__.__name__}: {err} \"{ua}\"")
                         return web.Response(status=500)
 
                 return middleware_handler
 
+
             async def start_server():
                 app = web.Application(middlewares=[access_logger])
-                app.add_routes([web.post('/', receive_data)] + routes)
+                app.add_routes([
+                                   web.post('/', receive_data),
+                                   web.get('/',
+                                           lambda x: web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html'))
+                               ] + routes)
                 runner = web.AppRunner(app)
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
@@ -2005,6 +2059,38 @@ class Dingtalk:
                     else:
                         stop = True
                         break
+
+    @staticmethod
+    async def ua_checker(
+            ua: str,
+            allow: str = Literal['user', 'dingtalk', 'dingtalk-user', 'all']
+    ) -> Union[None, web.Response]:
+        bot_agent = [
+            "PycURL",
+            "HttpClient",
+            "Googlebot",
+            "MJ12bot",
+            "AhrefsBot",
+            "Nessus",
+            "Acunetix",
+            "sqlmap",
+            "HackTool",
+            "Darknet",
+            "http",
+            "python",
+        ]
+        if allow == 'user':
+            if 'Mozilla' not in ua:
+                return web.Response(status=400)
+        elif allow == "dingtalk-user":
+            if "com.alibaba.android.rimet" not in ua and "AliApp" not in ua:
+                return web.Response(status=400)
+        elif allow == "dingtalk":
+            if list(filter(lambda x: x in ua, bot_agent)):
+                return web.Response(status=400)
+            if ua == "-":
+                return web.Response(status=400)
+        return None
 
     @staticmethod
     def _openConversationId2str(openConversationId: Union[OpenConversationId, Group, str]) -> str:

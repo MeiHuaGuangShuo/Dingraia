@@ -16,7 +16,8 @@ setup(
         "aiohttp",
         "pycryptodome",
         "websockets",
-        "rich"
+        "rich",
+        "deprecation"
     ],
     python_requires='>3.7',
     zip_safe=True,
