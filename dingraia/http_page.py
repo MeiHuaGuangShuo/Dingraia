@@ -1,5 +1,3 @@
-from aiohttp import web
-
 HTTP_DEFAULT_PAGE = """
 <!DOCTYPE html>
 <html>
