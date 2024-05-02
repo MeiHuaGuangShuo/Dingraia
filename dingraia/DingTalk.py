@@ -1723,6 +1723,12 @@ class Dingtalk:
                         logger.error(
                             f"{clientIp} {request.method} {req_path} {http_version} "
                             f"{http_err.status_code} {http_err.reason} \"{ua}\"")
+                        if http_err.status_code == 404:
+                            return web.Response(text=HTTP_404_PAGE, content_type='text/html')
+                        elif http_err.status_code == 405:
+                            return web.Response(text=HTTP_405_PAGE, content_type='text/html')
+                        elif http_err.status_code == 500:
+                            return web.Response(text=HTTP_500_PAGE, content_type='text/html')
                         return web.Response(status=http_err.status_code)
                     except Exception as err:
                         logger.error(

@@ -18,6 +18,6 @@ HTTP_405_PAGE = """
 
 """
 
-HTTP_502_PAGE = """
+HTTP_500_PAGE = """
 
 """
