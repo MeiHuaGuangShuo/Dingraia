@@ -1061,7 +1061,11 @@ class Dingtalk:
         if 'authCode' in data:  # Success
             code = data['authCode']
             if 'redict' in data:
-                return web.HTTPFound(data['redict'])
+                target_url = data['redict']
+                target_url.replace("\\", '/')
+                if not urlparse(target_url).netloc:
+                    return web.HTTPFound(data['redict'])
+                return web.Response(body="Invalid redict url")
         else:
             ...
 
