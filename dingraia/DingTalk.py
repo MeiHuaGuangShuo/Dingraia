@@ -1064,8 +1064,8 @@ class Dingtalk:
                 target_url = data['redict']
                 target_url.replace("\\", '/')
                 if not urlparse(target_url).netloc:
-                    return web.HTTPFound(data['redict'])
-                return web.Response(body="Invalid redict url")
+                    return web.HTTPFound(target_url)
+                return web.Response(body="Invalid redict url", status=400)
         else:
             ...
 
