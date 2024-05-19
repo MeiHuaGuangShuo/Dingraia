@@ -1053,10 +1053,12 @@ class Dingtalk:
     ):
         return await self.mute_member(openConversationId, memberStaffIds, 0)
 
-    async def login_handler(self, request: web.Request):
+    @staticmethod
+    async def login_handler(request: web.Request):
         data = request.query
 
-    async def check_login_status(self, request: web.Request):
+    @staticmethod
+    async def check_login_status(request: web.Request):
         data = request.query
         if 'authCode' in data:  # Success
             code = data['authCode']
@@ -1698,6 +1700,8 @@ class Dingtalk:
 
             @logger.catch
             async def receive_data(request: web.Request):
+                if "{" not in await request.text():
+                    return web.Response(text="Invalid request body", status=400)
                 res = await self.bcc(await request.json())
                 if res:
                     if isinstance(res, dict):
@@ -1711,7 +1715,10 @@ class Dingtalk:
                     ua = request.headers.get('User-Agent', '-')
                     http_version = f"HTTP/{request.version.major}.{request.version.minor}"
                     req_path = (request.path + "?" + request.query_string) if request.query_string else request.path
-                    check_ua = await self.ua_checker(ua, 'dingtalk-user')
+                    if is_debug:
+                        check_ua = await self.ua_checker(ua, 'all')
+                    else:
+                        check_ua = await self.ua_checker(ua, 'dingtalk-user')
                     if check_ua is not None:
                         logger.warning(
                             f"{clientIp} {request.method} {req_path} {http_version} "
@@ -2001,21 +2008,34 @@ class Dingtalk:
         except asyncio.exceptions.CancelledError:
             logger.warning("Program forced to be exit!")
 
-    def create_task(self, coroutine: Coroutine, name: str = "Task", show_info=True):
+    def create_task(self, coroutine: Coroutine, name: str = "Task", show_info=True, not_cancel_at_the_exit=False):
         """创建一个异步任务, 此任务会在stop函数被调用时取消
         
         Args:
             coroutine: 要加入的异步任务
             name: 任务名称, 用于标识
             show_info: 是否在控制台显示注册消息
+            not_cancel_at_the_exit: 是否在程序退出时不取消任务
 
         Returns:
             tuple(Task, name)
 
         """
+
+        def task_done_callback(task: asyncio.Task):
+            exception = task.exception()
+            if exception:
+                logger.exception(f"Task [{name}] was ended with an error: {exception.__class__.__name__}", exception)
+            else:
+                logger.info(f"Task [{name}] was ended")
+            if task in self.async_tasks:
+                self.async_tasks.remove(task)
+
         task = self.loop.create_task(coroutine)
         task.set_name(name := (f"#{next(_no)} " + name))
-        self.async_tasks.append(task)
+        task.add_done_callback(task_done_callback)
+        if not not_cancel_at_the_exit:
+            self.async_tasks.append(task)
         if show_info:
             logger.info(f"Create async task [{name}]")
         return task, name
@@ -2088,6 +2108,8 @@ class Dingtalk:
             "Darknet",
             "http",
             "python",
+            "WindowsPowerShell",
+            "curl"
         ]
         if allow == 'user':
             if 'Mozilla' not in ua:
