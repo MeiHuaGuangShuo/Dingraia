@@ -6,6 +6,7 @@ import importlib.metadata
 import inspect
 import signal
 import socket
+import sys
 import urllib.parse
 from urllib.parse import urlencode, urljoin
 import uuid
@@ -15,7 +16,7 @@ from typing import Dict, Coroutine, Literal
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
-from deprecation import deprecated, fail_if_not_removed
+from deprecation import deprecated
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -1749,20 +1750,22 @@ class Dingtalk:
 
                 return middleware_handler
 
+            async def default_page(_) -> web.Response:
+                return web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html')
 
             async def start_server():
                 app = web.Application(middlewares=[access_logger])
                 app.add_routes([
                                    web.post('/', receive_data),
-                                   web.get('/',
-                                           lambda x: web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html'))
+                                   web.get('/', default_page)
                                ] + routes)
                 runner = web.AppRunner(app)
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
                 await site.start()
+                logger.info("Started as web mode")
 
-            self.create_task(start_server(), name="Aiohttp.WebServer")
+            self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
             # self.async_tasks.append(self.loop.create_task(start_server()))
         signal.signal(signal.SIGINT, exit)
         if not self.loop.is_running():
@@ -1800,7 +1803,11 @@ class Dingtalk:
 
         try:
             x, y = os.get_terminal_size().columns, os.get_terminal_size().lines
-        except:
+        except OSError:
+            x, y = 80, 20
+        except Exception as err:
+            logger.exception(err)
+            logger.warning(f"An unforeseen error occurred, please open a issue")
             x, y = 80, 20
         _topic = f"[Dingraia v{VERSION}]"
         _topic_len = len(_topic)
@@ -2033,7 +2040,8 @@ class Dingtalk:
 
         task = self.loop.create_task(coroutine)
         task.set_name(name := (f"#{next(_no)} " + name))
-        task.add_done_callback(task_done_callback)
+        if show_info:
+            task.add_done_callback(task_done_callback)
         if not not_cancel_at_the_exit:
             self.async_tasks.append(task)
         if show_info:
@@ -2165,5 +2173,7 @@ exit_signal = False
 
 def exit(signum, frame):
     global exit_signal
+    if exit_signal:
+        sys.exit(1)
     logger.warning(f"Received Signal {signum}")
     exit_signal = True
