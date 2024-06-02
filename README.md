@@ -69,10 +69,7 @@ pip install dingraia
 ```shell
 pip install dingraia -i https://pypi.douban.com/simple
 ```
-
-### 更新
-
-~~不会吧不会吧不会有人连pip怎么更新模块都不会就玩python了吧~~
+最近好像连不上了，没找到为什么，建议用清华源
 
 ```shell
 pip install --upgrade dingraia
