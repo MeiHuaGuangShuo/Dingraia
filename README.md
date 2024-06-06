@@ -156,4 +156,8 @@ def sync_example(app: Dingtalk):
 本项目基于[Graia](https://github.com/GraiaProject/Ariadne)QQ机器人框架模仿开发，
 有兴趣的话去点个star吧
 
+# 鸣谢
+
+特别感谢 [JetBrains](https://www.jetbrains.com/?from=Dingraia) 为 Dingraia 提供免费的 [PyCharm](https://www.jetbrains.com/pycharm/?from=Dingraia) 等 IDE 的授权  
+[<img src=".github/jetbrains-variant-3.png" width="200"/>](https://www.jetbrains.com/?from=Dingraia)
 
