@@ -71,6 +71,7 @@ pip install dingraia -i https://pypi.douban.com/simple
 ```
 最近好像连不上了，没找到为什么，建议用清华源
 
+### 升级 Dingraia
 ```shell
 pip install --upgrade dingraia
 ```
