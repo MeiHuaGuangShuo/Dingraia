@@ -50,10 +50,7 @@ DINGRAIA_ASCII = r"""
 """
 ANNOUNCEMENT = "See https://dingraia.gitbook.io/dingraia for documents"
 
-try:
-    is_debug = os.path.exists("dingraia_debug.mode") or os.environ.get("DEBUG") is not None
-except:
-    is_debug = False
+is_debug = os.path.exists("dingraia_debug.mode") or os.getenv("DEBUG") is not None
 
 
 def set_num():
@@ -1723,13 +1720,13 @@ class Dingtalk:
                     if check_ua is not None:
                         logger.warning(
                             f"{clientIp} {request.method} {req_path} {http_version} "
-                            f"{check_ua.status} \"{ua}\" Denied")
+                            f"{check_ua.status} {repr(ua)} Denied")
                         return check_ua
                     # 记录访问日志
                     try:
                         response = await handler(request)
-                        logger.info(f"{clientIp} {request.method} {req_path} {http_version} {response.status} "
-                                    f"{request.content_length} \"{ua}\"")
+                        logger.info(f"{clientIp} {request.method} {response.status} {req_path} {http_version} "
+                                    f"{request.content_length + response.content_length} {repr(ua)}")
                         return response
                     except web.HTTPException as http_err:
                         logger.error(
@@ -1744,8 +1741,8 @@ class Dingtalk:
                         return web.Response(status=http_err.status_code)
                     except Exception as err:
                         logger.error(
-                            f"{clientIp} {request.method} {req_path} {http_version} "
-                            f"500 {err.__class__.__name__}: {err} \"{ua}\"")
+                            f"{clientIp} {request.method} 500 {req_path} {http_version} "
+                            f"{err.__class__.__name__}: {err} {repr(ua)}")
                         return web.Response(status=500)
 
                 return middleware_handler
@@ -1908,9 +1905,9 @@ class Dingtalk:
                     if topic == 'disconnect':
                         result = 'disconnect'
                         logger.warning(
-                            f"[{task_name}] [System] Client was offered to disconnect, message: {json_message}")
+                            f"[{task_name}] [System] Client was offered to disconnect.")
                     else:
-                        logger.info(f"[{task_name}] [System] topic: {topic}")
+                        logger.info(f"[{task_name}] [System] {topic}")
                     headers['topic'] = "pong"
                     await websocket.send(json.dumps({
                         'code'   : 200,
@@ -1936,7 +1933,7 @@ class Dingtalk:
             return result
 
         async def main_stream(task_name: str):
-            while ...:
+            while not exit_signal:
                 if not self.stream_connect:
                     connection = await open_connection(task_name)
                 else:
