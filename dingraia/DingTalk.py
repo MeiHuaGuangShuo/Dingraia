@@ -1708,7 +1708,7 @@ class Dingtalk:
                         return web.Response(body=res)
 
             async def access_logger(_, handler):
-                async def middleware_handler(request: web.Request):
+                async def server_log(request: web.Request):
                     clientIp = request.headers.get("CF-Connecting-IP", request.headers.get("X-Real-IP", request.remote))
                     ua = request.headers.get('User-Agent', '-')
                     http_version = f"HTTP/{request.version.major}.{request.version.minor}"
@@ -1745,7 +1745,7 @@ class Dingtalk:
                             f"{err.__class__.__name__}: {err} {repr(ua)}")
                         return web.Response(status=500)
 
-                return middleware_handler
+                return server_log
 
             async def default_page(_) -> web.Response:
                 return web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html')
@@ -1760,7 +1760,7 @@ class Dingtalk:
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
                 await site.start()
-                logger.info("Started as web mode")
+                logger.info(f"Started at 0.0.0.0:{port}")
 
             self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
             # self.async_tasks.append(self.loop.create_task(start_server()))
