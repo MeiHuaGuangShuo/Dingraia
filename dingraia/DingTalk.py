@@ -1763,7 +1763,6 @@ class Dingtalk:
                 logger.info(f"Started at 0.0.0.0:{port}")
 
             self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
-            # self.async_tasks.append(self.loop.create_task(start_server()))
         signal.signal(signal.SIGINT, exit)
         if not self.loop.is_running():
             self.loop.run_forever()
@@ -1873,13 +1872,32 @@ class Dingtalk:
                 logger.error(f"[{task_name}] Open connection failed, Reason: {response.reason}, Response: {http_body}")
                 if response.status_code == 401:
                     logger.warning(f"[{task_name}] The AppKey or AppSecret maybe inaccurate")
-                    await self.stop()
+                    if len(self.async_tasks) == 1:
+                        await self.stop()
 
                     return False
                 return None
             return response.json()
 
         async def route_message(json_message, websocket: websockets.WebSocketServer, task_name: str):
+
+            async def response(message: dict):
+                if 'data' in message:
+                    message = {
+                        'code'   : 200,
+                        'headers': headers,
+                        'message': 'OK',
+                        'data'   : message['data'],
+                    }
+                else:
+                    message = {
+                        'code'   : 400,
+                        'headers': headers,
+                        'message': 'Invalid request',
+                        'data'   : {'success': False, 'reason': 'Access denied'},
+                    }
+                await self.loop.create_task(websocket.send(json.dumps(message)))
+
             result = ''
             try:
                 msg_type = json_message.get('type', '')
@@ -1892,12 +1910,7 @@ class Dingtalk:
                 elif headers.get('eventId', str(time.time())) in self.stream_checker[task_name]:
                     if is_debug:
                         logger.warning(f"Same Callback. ID:{headers.get('eventId', str(time.time()))}")
-                    await websocket.send(json.dumps({
-                        'code'   : 200,
-                        'headers': headers,
-                        'message': 'OK',
-                        'data'   : json_message['data'],
-                    }))
+
                     return result
                 else:
                     self.stream_checker[task_name].append(headers.get('eventId', str(time.time())))
@@ -1909,12 +1922,7 @@ class Dingtalk:
                     else:
                         logger.info(f"[{task_name}] [System] {topic}")
                     headers['topic'] = "pong"
-                    await websocket.send(json.dumps({
-                        'code'   : 200,
-                        'headers': headers,
-                        'message': 'OK',
-                        'data'   : json_message['data'],
-                    }))
+                    await response(json_message)
                 else:
                     if is_debug:
                         logger.debug(f"[{task_name}] " + json.dumps(json_message, indent=4, ensure_ascii=False))
@@ -1922,12 +1930,7 @@ class Dingtalk:
                         data['EventType'] = headers['eventType']
                     data['corpId'] = headers.get('eventCorpId')
                     await self.bcc(data)
-                    await websocket.send(json.dumps({
-                        'code'   : 200,
-                        'headers': headers,
-                        'message': 'OK',
-                        'data'   : json_message.get('data', ""),
-                    }))
+                    await response(json_message)
             except Exception as err:
                 logger.exception(f"[{task_name}] Error happened while handing the message", err)
             return result
@@ -1940,16 +1943,21 @@ class Dingtalk:
                     key = self.config.bot.appKey
                     secret = self.config.bot.appSecret
                     if self.stream_connect.SignHandler:
-                        if inspect.iscoroutinefunction(self.stream_connect.SignHandler):
-                            connection = await self.stream_connect.SignHandler(key, secret)
-                        elif inspect.isfunction(self.stream_connect.SignHandler):
-                            connection = self.stream_connect.SignHandler(key, secret)
-                        elif isinstance(self.stream_connect.SignHandler, str):
-                            if "http" not in self.stream_connect.SignHandler:
-                                raise ValueError(f"Incorrect signer url, consider use None to skip sign")
-                            connection = await open_connection(task_name, self.stream_connect.SignHandler)
-                        else:
-                            raise ValueError(f"Incorrect signer param, consider use None to skip sign")
+                        try:
+                            if inspect.iscoroutinefunction(self.stream_connect.SignHandler):
+                                connection = await self.stream_connect.SignHandler(key, secret)
+                            elif inspect.isfunction(self.stream_connect.SignHandler):
+                                connection = self.stream_connect.SignHandler(key, secret)
+                            elif isinstance(self.stream_connect.SignHandler, str):
+                                if "http" not in self.stream_connect.SignHandler:
+                                    raise ValueError(f"Incorrect signer url, consider use None to skip sign")
+                                connection = await open_connection(task_name, self.stream_connect.SignHandler)
+                            else:
+                                raise ValueError(f"Incorrect signer param, consider use None to skip sign")
+                        except Exception as err:
+                            logger.exception(err)
+                            logger.warning("Please restart the program to retry.")
+                            return
                     else:
                         connection = {"endpoint": "Pass", "ticket": "Pass"}
 
@@ -1969,7 +1977,7 @@ class Dingtalk:
                     if self.stream_connect.StreamUrl:
                         uri = self.stream_connect.StreamUrl
                     if self.stream_connect.ExtraHeaders:
-                        headers = self.stream_connect.ExtraHeaders
+                        headers.update(self.stream_connect.ExtraHeaders)
                 if connection:
                     if "?" not in uri:
                         uri = f"{uri}?ticket={urllib.parse.quote_plus(connection['ticket'])}"
@@ -1990,7 +1998,7 @@ class Dingtalk:
                             await websocket.close()
                             break
                         except Exception as err:
-                            logger.exception(err)
+                            logger.error(f"{err.__class__.__name__}: {err}")
                             logger.warning(f"[{task_name}] The stream connection will be reconnected after 5 seconds")
                             await asyncio.sleep(5)
                 except Exception as err:
@@ -2057,7 +2065,7 @@ class Dingtalk:
         tasks = self.async_tasks
         names = ', '.join([x.get_name() for x in self.async_tasks])
         if tasks:
-            logger.info(f"Cancelling async task(s): [{names}]")
+            logger.info(f"Cancelling async task{'s' if len(tasks) > 1 else ''}: [{names}]")
             for task in tasks:
                 is_cancelled = task.cancel()
                 name = task.get_name()
