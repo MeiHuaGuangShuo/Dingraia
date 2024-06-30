@@ -44,20 +44,22 @@ class Saya:
         logger.info(f"模块 {module_name} 载入完成")
     
     def uninstall_channel(self, module_name: Union[str, Callable]):
-        if module_name in self.channels or module_name in self.channels.values():
-            if module_name in self.mirrors:
-                module_name = self.mirrors[module_name]
+        if module_name in self.channels or module_name in self.channels.values():  # 写到这里自己都看不懂了
+            if module_name in self.channels.values():  # 如果是Callable则会转换成str
+                t_module_name = self.mirrors[module_name]
                 del self.mirrors[module_name]
+                module_name = t_module_name
             if module_name in self.channels:
                 del self.channels[module_name]
+            else:
+                raise KeyError("This must be an issue")
             channel = Channel.current()
             reged = channel.reg_event
-            for event in reged.keys():
-                module = reged[event]
+            for module in reged.values():
                 modules = list(module.keys())
                 if module_name in modules:
                     channel.reg_event[event].pop(module_name)
-                    if module_name in sys.modules:
-                        del sys.modules[module_name]
+            if module_name in sys.modules:
+                del sys.modules[module_name]
         else:
             raise KeyError(f"模块 {module_name} 没有被载入！")

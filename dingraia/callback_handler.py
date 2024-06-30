@@ -8,7 +8,7 @@ def matcher(key: str, *__dict: dict):
             return res
 
 
-def callback_handler(event_body: dict, raw_body=None):
+def callback_handler(event_body: dict, raw_body=None, trace_id=None):
     if raw_body is None:
         raw_body = {}
     event = None
@@ -54,4 +54,5 @@ def callback_handler(event_body: dict, raw_body=None):
         event.raw_mes = raw_body
         return event
     bsEvent = BasicEvent(raw_body, event_body)
+    event.trace_id = bsEvent.trace_id = trace_id
     return [event, bsEvent]

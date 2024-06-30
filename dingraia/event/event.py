@@ -5,6 +5,7 @@ from ..model import *
 
 class BasicEvent:
     type = "BasicEvent"
+    trace_id: str = None
     
     def __init__(self, raw_mes: str = "", dec_mes: Union[str, dict] = ""):
         self.raw_mes = raw_mes
@@ -13,6 +14,18 @@ class BasicEvent:
         
 class LoadComplete(BasicEvent):
     pass
+
+
+class RadioComplete(BasicEvent):
+    trace_id: str = None
+
+
+class NoMessageSend(BasicEvent):
+    trace_id: str = None
+
+
+class MessageSend(BasicEvent):
+    trace_id: str = None
 
 
 class CheckUrl(BasicEvent):

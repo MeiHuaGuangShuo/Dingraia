@@ -1,6 +1,7 @@
 import time
 import json
 import requests
+from collections import OrderedDict
 from .exceptions import DingtalkAPIError
 
 
@@ -110,6 +111,16 @@ class Response:
     def __repr__(self):
         return f"<Response [{self.ok}]>"
 
+
+class FixedSizeDict(OrderedDict):
+    def __init__(self, *args, max_size=50, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.max_size = max_size
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if len(self) > self.max_size:
+            self.popitem(last=False)
 
 class UrlBuilder:
     """抽象builder"""

@@ -17,6 +17,8 @@ import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
 from deprecation import deprecated
+
+from .saya.builtins.broadcast import ListenerSchema
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -81,18 +83,20 @@ class Dingtalk:
     WS_CONNECT_HOST: str = "https://api.dingtalk.com"
     WS_CONNECT_URL: str = WS_CONNECT_HOST + "/v1.0/gateway/connections/open"
     HOST: str = None
-    clientSession: ClientSession = None
     config: Config = None
     _loop: asyncio.AbstractEventLoop = None
     _access_token: AccessToken = None
+    _clientSession: ClientSession = None
     api_request: "Dingtalk._api_request" = None
     oapi_request: "Dingtalk._oapi_request" = None
     async_tasks = []
     stream_checker = {}
     """用于检测重复的回调, 键为任务名, 值为容纳50个StreamID的列表"""
+    message_trace_id = FixedSizeDict(max_size=200)
     stream_connect: CustomStreamConnect = None
 
     def __init__(self, config: Config = None):
+        self._clientSession = None or self._clientSession
         if Dingtalk.config is None:
             Dingtalk.config = config
             cache.enable = config.useDatabase
@@ -260,6 +264,13 @@ class Dingtalk:
                 raise err_reason[errCode](response.text)
             else:
                 delog.success(f"Success!", no=40)
+                if isinstance(target, (Group, Member)):
+                    if target.trace_id not in self.message_trace_id:
+                        self.message_trace_id[target.trace_id] = {"send_messages": 1}
+                    else:
+                        if not self.message_trace_id[target.trace_id].get("send_messages"):
+                            self.message_trace_id[target.trace_id]["send_messages"] = 0
+                        self.message_trace_id[target.trace_id]["send_messages"] += 1
             return response
 
     def sendMessage(
@@ -1273,7 +1284,7 @@ class Dingtalk:
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
     @property
-    def access_token(self):
+    def access_token(self) -> str:
         """当前企业的AccessToken, 会在调用时自动更新"""
         if self._access_token:
             return self._access_token.token
@@ -1283,6 +1294,14 @@ class Dingtalk:
             else:
                 self._access_token.refresh()
             return self._access_token.token
+
+    @property
+    def clientSession(self) -> ClientSession:
+        """始终返回活动的ClientSession, 避免误操作造成关闭"""
+        if self._clientSession.closed:
+            logger.warning(f"ClientSession 实例已经关闭, 正在重启")
+            self._clientSession = ClientSession()
+        return self._clientSession
 
     channel = Channel.current()
     callbacks = []
@@ -1305,12 +1324,14 @@ class Dingtalk:
 
     @logger.catch
     def disPackage(self, data: dict) -> dict:
+        trace_id = str(uuid.uuid4())
         if "conversationType" in data:
             conversationType = data.get("conversationType")
             if conversationType is not None:
                 bot = Bot(origin=data)
                 group = Group(origin=data)
                 member = Member(origin=data)
+                bot.trace_id = group.trace_id = member.trace_id = trace_id
                 if conversationType == "2":
                     at_users = [(userid.get("dingtalkId"), userid.get("staffId")) for userid in data.get("atUsers") if
                                 userid.get("dingtalkId")[userid.get("dingtalkId").rfind('$'):] != bot.origin_id]
@@ -1348,9 +1369,13 @@ class Dingtalk:
                     mes = "Unknown Message"
                     message = MessageChain(mes)
                 # logger.info(at_users)
+                message.trace_id = trace_id
                 self.log.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}")
                 event = MessageEvent(data.get('msgtype'), data.get('msgId'), data.get('isInAtList'), message, group,
                                      member)
+                self.message_trace_id[trace_id] = {
+                    "items": [group, member, message, event, bot]
+                }
                 return {
                     "success"   : True,
                     "send_data" : [group, member, message, event, bot],
@@ -1428,6 +1453,9 @@ class Dingtalk:
             if is_debug:
                 logger.info(data)
             res = callback_handler(data)
+            self.message_trace_id[trace_id] = {
+                "items": [res] if not isinstance(res, list) else res
+            }
             return {
                 "success"   : True,
                 "send_data" : [res] if not isinstance(res, list) else res,
@@ -1681,7 +1709,7 @@ class Dingtalk:
                 raise ValueError(f"路由列表中存在非web.RouteDef类型对象: {r}")
         Channel().set_channel()
         Saya().set_channel()
-        self.clientSession = ClientSession()
+        self._clientSession = ClientSession()
         self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
         self.api_request = self._api_request(self.clientSession, self._access_token)
         self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
@@ -1768,7 +1796,7 @@ class Dingtalk:
             self.loop.run_forever()
 
     async def _init_console(self):
-        self.clientSession = ClientSession()
+        self._clientSession = ClientSession()
         self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
         self.api_request = self._api_request(self.clientSession, self._access_token)
         self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
@@ -1859,25 +1887,26 @@ class Dingtalk:
                 'ua'           : f'Dingraia/{VERSION}',
                 'localIp'      : get_host_ip()
             }
-            response = requests.post(url,
-                                     headers=request_headers,
-                                     json=request_body)
+            # response = requests.post(url,
+            #                          headers=request_headers,
+            #                          json=request_body)
+            response = await self.clientSession.post(url, json=request_body, headers=request_headers)
             try:
-                http_body = response.json()
+                http_body = await response.json()
             except Exception as err:
-                logger.error(f"{err.__class__.__name__}: {err} Body: {response.text}")
+                logger.error(f"{err.__class__.__name__}: {err} Body: {await response.text()}")
                 await asyncio.sleep(5)
                 return None
             if not response.ok:
                 logger.error(f"[{task_name}] Open connection failed, Reason: {response.reason}, Response: {http_body}")
-                if response.status_code == 401:
+                if response.status == 401:
                     logger.warning(f"[{task_name}] The AppKey or AppSecret maybe inaccurate")
                     if len(self.async_tasks) == 1:
                         await self.stop()
 
                     return False
                 return None
-            return response.json()
+            return http_body
 
         async def route_message(json_message, websocket: websockets.WebSocketServer, task_name: str):
 
@@ -2103,6 +2132,19 @@ class Dingtalk:
                         stop = True
                         break
 
+    @classmethod
+    @channel.use(ListenerSchema(listening_events=[RadioComplete]))
+    async def radio_done_callback(cls, trace_id: str = None):
+        if trace_id is not None:
+            if trace_id in cls.message_trace_id:
+                if cls.message_trace_id[trace_id].get("send_messages") is None:
+                    for i in cls.message_trace_id[trace_id].get("items", ""):
+                        if isinstance(i, Group):
+                            await cls.send_message(cls, i, "None Message Send")
+                else:
+                    pass
+        raise NotImplementedError
+
     @staticmethod
     async def ua_checker(
             ua: str,
@@ -2178,7 +2220,9 @@ exit_signal = False
 
 def exit(signum, frame):
     global exit_signal
+    print("\r", end="")
     if exit_signal:
+        logger.warning(f"User forced to quit")
         sys.exit(1)
     logger.warning(f"Received Signal {signum}")
     exit_signal = True

@@ -208,7 +208,7 @@ class Markdown(BaseElement):
         }
     
     def __str__(self):
-        return "[Markdown]"
+        return self.title if self.title else "[Markdown]"
 
 
 class ActionCard(BaseElement):
@@ -328,7 +328,7 @@ class ActionCard(BaseElement):
                 }
     
     def __str__(self):
-        return "[ActionCard]"
+        return self.title if self.title else "[ActionCard]"
 
 
 class FeedCard(BaseElement):

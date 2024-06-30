@@ -28,6 +28,7 @@ class Webhook:
 
 
 class Group:
+    trace_id: str = None
     
     def __init__(self, id: str = None,
                  name: str = None,
@@ -62,6 +63,7 @@ class Group:
 
 
 class Member:
+    trace_id: str = None
     
     def __init__(self, id: str = None,
                  staffid: str = None,
@@ -89,6 +91,7 @@ class Member:
 
 
 class Bot:
+    trace_id: str = None
     
     def __init__(self, id: str = None, corp_id: str = None, robot_code: str = None, origin: dict = None):
         if origin is not None:
