@@ -13,3 +13,29 @@ def ColoredFormatter(message: str):
         message = message.replace(f"<{color}>", color_map[color])
         message = message.replace(f"</{color}>", color_map["reset"])
     return message
+
+
+class NoUseClass:
+    def __call__(self, *args, **kwargs):
+        return self
+
+    def __getattr__(self, _):
+        return self
+
+    def __getitem__(self, item):
+        return self
+
+    def __setitem__(self, key, value):
+        return self
+
+    def __add__(self, other):
+        return self
+
+    def __divmod__(self, other):
+        return self
+
+    def __sub__(self, other):
+        return self
+
+    def __mod__(self, other):
+        return self

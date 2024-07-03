@@ -5,6 +5,7 @@ import hmac
 import importlib.metadata
 import inspect
 import signal
+import mutagen
 import socket
 import sys
 import urllib.parse
@@ -16,7 +17,6 @@ from typing import Dict, Coroutine, Literal
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
-from deprecation import deprecated
 
 from .saya.builtins.broadcast import ListenerSchema
 from .VERSION import VERSION
@@ -93,6 +93,9 @@ class Dingtalk:
     stream_checker = {}
     """用于检测重复的回调, 键为任务名, 值为容纳50个StreamID的列表"""
     message_trace_id = FixedSizeDict(max_size=200)
+    """用于容纳发送的信息的追溯ID, 键为消息ID"""
+    media_id_cache = FixedSizeDict(max_size=500)
+    """用于容纳上传的MediaID, 键为文件SHA-256, 值为MediaID"""
     stream_connect: CustomStreamConnect = None
 
     def __init__(self, config: Config = None):
@@ -1189,6 +1192,7 @@ class Dingtalk:
             elif file_format in ['amr', 'mp3', 'wav']:
                 file_type = 'voice'
                 res = Audio()
+                res.duration = int(mutagen.File(file.file).info.length * 1000)
             elif file_format in ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'pdf', 'rar']:
                 file_type = 'file'
                 res = File()
@@ -1227,22 +1231,39 @@ class Dingtalk:
                 raise UploadFileSizeError("Normal file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
         if not access_token:
             access_token = self.access_token
-        data = aiohttp.FormData()
-        data.add_field('type', file_type)
-        if file.fileName:
-            data.add_field('media', f, filename=file.fileName)
+        file_hash = hashlib.sha256()
+        while chunk := f.read(4096):
+            file_hash.update(chunk)
+        file_hash = file_hash.hexdigest()
+        f.seek(0)
+        if is_debug:
+            logger.debug(f"File hash: {file_hash}")
+        if file_hash not in self.media_id_cache.keys():
+            data = aiohttp.FormData()
+            data.add_field('type', file_type)
+            if file.fileName:
+                data.add_field('media', f, filename=file.fileName)
+            else:
+                data.add_field('media', f)
+            if isinstance(file, Audio):
+                mfile = mutagen.File(file.file)
+                file_length = mfile.info.length
+                file.duration = int(file_length * 1000)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f'https://oapi.dingtalk.com/media/upload?access_token={access_token}',
+                                        data=data) as resp:
+                    res_json = await resp.json()
+                    if res_json.get("errcode"):
+                        raise err_reason[res_json.get("errcode")](
+                            f"Error while uploading the file.Server response: {res_json}")
+                    cache.add_openapi_count()
+            self.media_id_cache[file_hash] = res_json['media_id']
+            res.mediaId = res_json['media_id']
         else:
-            data.add_field('media', f)
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f'https://oapi.dingtalk.com/media/upload?access_token={access_token}',
-                                    data=data) as resp:
-                res_json = await resp.json()
-                if res_json.get("errcode"):
-                    raise err_reason[res_json.get("errcode")](
-                        f"Error while uploading the file.Server response: {res_json}")
-                cache.add_openapi_count()
+            if is_debug:
+                logger.debug(f"Using cached MediaID for {file_hash} -> {self.media_id_cache[file_hash]}")
+            res.mediaId = self.media_id_cache[file_hash]
 
-        res.mediaId = res_json['media_id']
         return res
 
     async def download_file(self, downloadCode: Union[File, str], path: Union[Path, str]):
@@ -1490,7 +1511,6 @@ class Dingtalk:
         return cache.get_api_counts()
 
     @staticmethod
-    @deprecated(deprecated_in="2.0.2", removed_in="3.0", details="New method available")
     async def _send(url, send_data, headers=None):
         delog.info(f"发送中:{url}", no=40)
         if url and "http" not in url:
@@ -2133,7 +2153,7 @@ class Dingtalk:
                         break
 
     @classmethod
-    @channel.use(ListenerSchema(listening_events=[RadioComplete]))
+    # @channel.use(ListenerSchema(listening_events=[RadioComplete]))
     async def radio_done_callback(cls, trace_id: str = None):
         if trace_id is not None:
             if trace_id in cls.message_trace_id:
