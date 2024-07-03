@@ -82,7 +82,8 @@ class Member:
             name: str = None,
             group: Group = None,
             admin: bool = None,
-            origin: dict = None
+            origin: dict = None,
+            staffId: str = None
     ):
         if origin is not None:
             id = origin.get('senderId')
@@ -92,8 +93,8 @@ class Member:
         self.origin_id = id[id.rfind("$"):]
         self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (10 ** 10) + 1000
         self.name = name
-        self.staffid = staffid
-        self.staffId = staffid
+        self.staffid = staffid or staffId
+        self.staffId = staffid or staffId
         self.group = group
         self.admin = admin
 
