@@ -18,7 +18,7 @@ import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
 
-from .saya.builtins.broadcast import ListenerSchema
+# from .saya.builtins.broadcast import ListenerSchema
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -1928,7 +1928,11 @@ class Dingtalk:
                 return None
             return http_body
 
-        async def route_message(json_message, websocket: websockets.WebSocketServer, task_name: str):
+        async def route_message(
+                json_message,
+                websocket: Union[websockets.WebSocketServer, websockets.WebSocketClientProtocol],
+                task_name: str
+        ):
 
             async def response(message: dict):
                 if 'data' in message:
