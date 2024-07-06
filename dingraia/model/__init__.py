@@ -85,6 +85,18 @@ class Member:
             origin: dict = None,
             staffId: str = None
     ):
+        """成员的对象
+
+        Args:
+            id: 成员的唯一ID
+            staffid: 成员在当前组织的工号，通常以数字和 '-'  号组成，也可以是其他字符
+            staffId: 与staffid用法一致，任意一个填写均可
+            name: 成员在组织内的名称
+            group: 成员所属的组
+            admin: 是否为 group 的管理员
+            origin: 原始 JSON 数据，用于让此类自动匹配
+
+        """
         if origin is not None:
             id = origin.get('senderId')
             name = origin.get("senderNick")
