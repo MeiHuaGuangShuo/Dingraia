@@ -122,6 +122,16 @@ class FixedSizeDict(OrderedDict):
         if len(self) > self.max_size:
             self.popitem(last=False)
 
+
+class RequestHandler:
+
+    def __init__(self, *handlers):
+        self.handlers = handlers
+
+    def __iter__(self):
+        return iter(self.handlers)
+
+
 class UrlBuilder:
     """抽象builder"""
     

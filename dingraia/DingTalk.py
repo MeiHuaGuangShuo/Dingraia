@@ -1802,7 +1802,8 @@ class Dingtalk:
                 return web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html')
 
             async def start_server():
-                app = web.Application(middlewares=[access_logger])
+                request_handler = RequestHandler(access_logger)
+                app = web.Application(middlewares=request_handler)
                 app.add_routes([
                                    web.post('/', receive_data),
                                    web.get('/', default_page)
