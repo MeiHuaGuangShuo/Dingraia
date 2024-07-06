@@ -116,6 +116,10 @@ class Dingtalk:
             msg: 要发送的文本
             headers: 要包含的请求头
 
+        Notes:
+            如果target为None，则会发送到测试群，需要在配置文件中配置测试群的Webhook地址。
+            在使用At的时候，如果target为Group, Member, OpenConversationId, 则会自动替换At为空，这是钉钉的限制。
+
         Returns:
             Response
 
@@ -123,7 +127,6 @@ class Dingtalk:
         # TODO
         if headers is None:
             headers = {}
-        send_data = {}
         response = Response()
         response.recallType = f"Unsupported recall target {type(target).__name__}"
         if isinstance(target, str):
