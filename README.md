@@ -35,17 +35,13 @@ At可以传入Member实例（仅限企业内部机器人）与手机号，会自
 
 # 实现方法
 
-通过使用 Flask服务端/Websocket 和装饰器进行函数调用的广播方法。
+通过使用 aiohttp异步服务端/Websockets 和装饰器进行函数调用的广播方法。
 
 # 如何使用？
 
 把导入的模块相应地替换成Dingraia中的模块即可。
 
-~~查看 `Usage.md` 获取基本用法~~
-
 查看 [GitBook文档](https://dingraia.gitbook.io/dingraia)
-
-由于Cloudflare和L服务器的原因，博客可能无法使用，如需帮助请联系我
 
 在 `main_example.py` 中包含了一个和官方相似的示例，使用以下命令即可开启
 ```shell
@@ -64,12 +60,19 @@ python main_example.py -k <AppKey> -s <AppSecret>
 pip install dingraia
 ```
 
-### Pypi豆瓣源(个人认为挺快的)
+### Pypi 清华源加速
+
+#### 设置永久使用
 
 ```shell
-pip install dingraia -i https://pypi.douban.com/simple
+python -m pip install --upgrade pip
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 ```
-最近好像连不上了，没找到为什么，建议用清华源
+
+#### 安装
+```shell
+pip install dingraia -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
 
 ### 升级 Dingraia
 ```shell
