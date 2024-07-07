@@ -4,5 +4,6 @@ watchdog
 websockets
 prompt_toolkit
 rich
+loguru
 mutagen
 watchdog
