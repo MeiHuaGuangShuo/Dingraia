@@ -1,10 +1,13 @@
 import asyncio
 import base64
 import collections
+import functools
 import hmac
 import importlib.metadata
 import inspect
 import signal
+from concurrent.futures import ThreadPoolExecutor
+
 import mutagen
 import socket
 import sys
@@ -100,6 +103,8 @@ class Dingtalk:
     """用于自定义Stream连接"""
     message_handle_complete_callback: List[Callable] = []
     """当收到空消息时的回调"""
+    send_message_handler: List[Callable] = []
+    """发送消息时的回调，可用于检测发送体"""
 
     def __init__(self, config: Config = None):
         self._clientSession = None or self._clientSession
@@ -247,6 +252,20 @@ class Dingtalk:
             response.recall_type = "Not completed request"
             return response
         response.sendData = send_data
+        with ThreadPoolExecutor() as pool:
+            for func in self.send_message_handler:
+                send = {}
+                sig = inspect.signature(func)
+                params = sig.parameters
+                for name, param in params.items():
+                    args = [self, send_data, msg, url]
+                    for typ in args:
+                        if isinstance(typ, param.annotation):
+                            send[name] = typ
+                if inspect.iscoroutinefunction(func):
+                    _ = self.loop.create_task(logger.catch(func)(**send))
+                else:
+                    self.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send))
         try:
             if 'api' in url:
                 resp = await self.api_request.post(url, json=send_data, headers=headers)
