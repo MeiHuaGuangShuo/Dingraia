@@ -6,7 +6,7 @@ import argparse
 
 # 可修改区域 ↓
 module_dir = "example_module"  # 如果需要按模块导入，则需要填写
-desp = "这里是Dingraia的示例启动文件"
+describe = "这里是Dingraia的示例启动文件"
 # 可修改区域 ↑
 
 app = Dingtalk(
@@ -23,7 +23,7 @@ app = Dingtalk(
            ))
 
 if __name__ == '__main__':  # 为了兼容 `python -m dingraia`， 此操作是必须的
-    parser = argparse.ArgumentParser(description=desp)
+    parser = argparse.ArgumentParser(description=describe)
     parser.add_argument("--app-key", "-k", type=str, help="Stream 模式下的AppKey")
     parser.add_argument("--app-secret", "-s", type=str, help="Stream 模式下的AppSecret")
     args = parser.parse_args()

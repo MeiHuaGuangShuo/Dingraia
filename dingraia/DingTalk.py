@@ -7,6 +7,7 @@ import importlib.metadata
 import inspect
 import signal
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 
 import mutagen
 import socket
@@ -152,7 +153,9 @@ class Dingtalk:
             send_data = msg.template
             send_data['media_id'] = msg.mediaId
             if isinstance(target, Group):
+                traceId = target.traceId
                 target = target.openConversationId
+                target.traceId = traceId
             send_data['robotCode'] = self.config.bot.robotCode
             send_data['openConversationId'] = str(target)
         else:
@@ -293,7 +296,7 @@ class Dingtalk:
                 raise err_reason[errCode](response.text)
             else:
                 delog.success(f"Success!", no=40)
-                if isinstance(target, (Group, Member)):
+                if isinstance(target, (Group, Member, OpenConversationId)):
                     if target.traceId not in self.message_trace_id:
                         self.message_trace_id[target.traceId] = {"send_messages": 1}
                     else:
@@ -1245,23 +1248,26 @@ class Dingtalk:
             res = file
         if file_type == "image":
             if size > 20 * MiB:
-                raise UploadFileSizeError("Image file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
+                raise UploadFileSizeError(f"Image file is limited under 20M, but {(size / (1024 ** 2)):.2f}M given!")
         elif file_type == "voice":
             if size > 2 * MiB:
-                raise UploadFileSizeError("Voice file is limited under 2M, but %sM given!" % (size / (1024 ** 2)))
+                raise UploadFileSizeError(f"Voice file is limited under 2M, but {(size / (1024 ** 2)):.2f}M given!")
         elif file_type == "video":
             if size > 20 * MiB:
-                raise UploadFileSizeError("Video file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
+                raise UploadFileSizeError(f"Video file is limited under 20M, but {(size / (1024 ** 2)):.2f}M given!")
         else:
             if size > 20 * MiB:
-                raise UploadFileSizeError("Normal file is limited under 20M, but %sM given!" % (size / (1024 ** 2)))
+                raise UploadFileSizeError(f"Normal file is limited under 20M, but {(size / (1024 ** 2)):.2f}M given!")
         if not access_token:
             access_token = self.access_token
         file_hash = hashlib.sha256()
+        if isinstance(f, bytes):
+            f = BytesIO(f)
         while chunk := f.read(4096):
             file_hash.update(chunk)
-        file_hash = file_hash.hexdigest()
         f.seek(0)
+        file.file = f
+        file_hash = file_hash.hexdigest()
         if is_debug:
             logger.debug(f"File hash: {file_hash}")
         if file_hash not in self.media_id_cache.keys():
@@ -1428,9 +1434,9 @@ class Dingtalk:
                 self.log.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}")
                 event = MessageEvent(data.get('msgtype'), data.get('msgId'), data.get('isInAtList'), message, group,
                                      member)
-                self.message_trace_id[traceId] = {
-                    "items": [group, member, message, event, bot]
-                }
+                if traceId not in self.message_trace_id:
+                    self.message_trace_id[traceId] = {}
+                self.message_trace_id[traceId]["items"] = [group, member, message, event, bot]
                 return {
                     "success"   : True,
                     "send_data": [group, member, message, event, bot, traceId],
@@ -1509,12 +1515,12 @@ class Dingtalk:
             if is_debug:
                 logger.info(data)
             res = callback_handler(data)
-            self.message_trace_id[traceId] = {
-                "items": [res] if not isinstance(res, list) else res
-            }
+            if traceId not in self.message_trace_id:
+                self.message_trace_id[traceId] = {}
+            self.message_trace_id[traceId]["items"] = [res] if not isinstance(res, list) else res
             return {
                 "success"   : True,
-                "send_data": ([res] if not isinstance(res, list) else res).append(traceId),
+                "send_data": ([res] if not isinstance(res, list) else res) + [traceId],
                 "event_type": [res] if not isinstance(res, list) else res,
                 "returns"   : ""
             }

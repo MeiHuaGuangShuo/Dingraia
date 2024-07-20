@@ -12,7 +12,7 @@ async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, 
         ))
     elif str(message) == "/ac":
         await app.send_message(group, ActionCard(
-            text="![GitHub icon](https://github.com/favicon.ico)\n# Dingraia ActionCard Test",
+            text="![GitHub icon](https://gh-card.dev/repos/MeiHuaGuangShuo/Dingraia.svg)\n# Dingraia ActionCard Test",
             button=[
                 ["Dingraia", "https://github.com/MeiHuaGuangShuo/Dingraia"],
                 ["MeiHuaGuangShuo", "https://github.com/MeiHuaGuangShuo"],
@@ -21,6 +21,12 @@ async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, 
     elif str(message) == "/fd":
         await app.send_message(group, FeedCard(
             [
+                [
+                    "Never Gonna Give You Up - Rick Astley",
+                    "https://vdse.bdstatic.com//192d9a98d782d9c74c96f09db9378d93.mp4",
+                    "https://static2.srcdn.com/wordpress/wp-content/uploads/2021/02/Rick-Astley-Never-Gonna-Give-You"
+                    "-Up-Remastered-Header.jpg"
+                ],
                 [
                     "【手绘逐帧meme】一键三连变成女孩子有多可爱！❤️-哔哩哔哩",
                     "https://www.bilibili.com/video/BV1TK421Y78b",
@@ -35,9 +41,10 @@ async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, 
         ))
     elif str(message) == "/audio":
         await app.send_message(group, Audio(
-            "https://www.bilibili.com/audio/BV17K4y1p79T?p=1"
+            "https://img.tukuppt.com/newpreview_music/00/10/92/5d819c5314d2c25565.mp3", fileName="siren.mp3"
         ))
     elif str(message) == "/image":
         await app.send_message(group, Image(
-            "https://i0.hdslb.com/bfs/album/d5d5d9d5d5.jpg"
+            "https://static2.srcdn.com/wordpress/wp-content/uploads/2021/02/Rick-Astley-Never-Gonna-Give-You-Up"
+            "-Remastered-Header.jpg"
         ))

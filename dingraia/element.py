@@ -17,6 +17,9 @@ class OpenConversationId:
     
     group_id: int
     """用于标识群ID(框架内显示ID)，可能为无"""
+
+    traceId: "TraceId" = None
+    """用于标识请求的traceId"""
     
     def __init__(self, openConversationId, name="未知会话", group_id=0):
         self.openConversationId = openConversationId
