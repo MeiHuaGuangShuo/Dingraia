@@ -19,7 +19,7 @@ if not os.path.exists(Path("main.py")):
         path = input('Input filename(Empty to exit) > ')
         if not os.path.exists(Path(path)):
             logger.error("File not found!")
-            sys.exit(1)
+            exit(1)
 path = path or "main.py"
 path = path.replace('.py', '')
 app: Dingtalk = __import__(path).app

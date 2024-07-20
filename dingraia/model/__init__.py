@@ -1,6 +1,6 @@
 import hashlib
 from typing import Union
-from ..element import OpenConversationId
+from ..element import OpenConversationId, TraceId
 
 
 class Webhook:
@@ -36,7 +36,7 @@ class Webhook:
 
 
 class Group:
-    trace_id: str = None
+    traceId: TraceId = None
 
     def __init__(
             self, id: str = None,
@@ -73,7 +73,7 @@ class Group:
 
 
 class Member:
-    trace_id: str = None
+    traceId: TraceId = None
 
     def __init__(
             self,
@@ -118,7 +118,7 @@ class Member:
 
 
 class Bot:
-    trace_id: str = None
+    traceId: TraceId = None
 
     def __init__(self, id: str = None, corp_id: str = None, robot_code: str = None, origin: dict = None):
         if origin is not None:

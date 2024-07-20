@@ -3,6 +3,7 @@ import json
 import requests
 from collections import OrderedDict
 from .exceptions import DingtalkAPIError
+from typing import Optional
 
 
 class OpenConversationId:
@@ -130,6 +131,38 @@ class RequestHandler:
 
     def __iter__(self):
         return iter(self.handlers)
+
+
+class TraceId:
+    """TraceId上下文管理器"""
+
+    traceId: str = None
+
+    def __init__(self, traceId: str = None):
+        self.traceId = traceId
+
+    def __str__(self):
+        return self.traceId
+
+    def __enter__(self):
+        return self.traceId
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class Context:
+    traceId: Optional[TraceId] = None
+
+    def __init__(self):
+        pass
+
+    def __enter__(self, traceId: TraceId):
+        self.traceId = traceId
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.traceId = None
 
 
 class UrlBuilder:

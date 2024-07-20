@@ -12,13 +12,13 @@ import urllib.parse
 from urllib.parse import urlencode, urljoin
 import uuid
 from functools import reduce
-from typing import Dict, Coroutine, Literal
+from typing import Callable, Dict, Coroutine, Literal
 
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
 
-# from .saya.builtins.broadcast import ListenerSchema
+
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -92,14 +92,18 @@ class Dingtalk:
     async_tasks = []
     stream_checker = {}
     """用于检测重复的回调, 键为任务名, 值为容纳50个StreamID的列表"""
-    message_trace_id = FixedSizeDict(max_size=200)
+    message_trace_id: Dict[TraceId, dict] = FixedSizeDict(max_size=200)
     """用于容纳发送的信息的追溯ID, 键为消息ID"""
     media_id_cache = FixedSizeDict(max_size=500)
     """用于容纳上传的MediaID, 键为文件SHA-256, 值为MediaID"""
     stream_connect: CustomStreamConnect = None
+    """用于自定义Stream连接"""
+    message_handle_complete_callback: List[Callable] = []
+    """当收到空消息时的回调"""
 
     def __init__(self, config: Config = None):
         self._clientSession = None or self._clientSession
+        self.context = Context()
         if Dingtalk.config is None:
             Dingtalk.config = config
             cache.enable = config.useDatabase
@@ -271,12 +275,12 @@ class Dingtalk:
             else:
                 delog.success(f"Success!", no=40)
                 if isinstance(target, (Group, Member)):
-                    if target.trace_id not in self.message_trace_id:
-                        self.message_trace_id[target.trace_id] = {"send_messages": 1}
+                    if target.traceId not in self.message_trace_id:
+                        self.message_trace_id[target.traceId] = {"send_messages": 1}
                     else:
-                        if not self.message_trace_id[target.trace_id].get("send_messages"):
-                            self.message_trace_id[target.trace_id]["send_messages"] = 0
-                        self.message_trace_id[target.trace_id]["send_messages"] += 1
+                        if not self.message_trace_id[target.traceId].get("send_messages"):
+                            self.message_trace_id[target.traceId]["send_messages"] = 0
+                        self.message_trace_id[target.traceId]["send_messages"] += 1
             return response
 
     def sendMessage(
@@ -500,10 +504,10 @@ class Dingtalk:
 
     async def create_group(
             self,
-            name,
-            templateId,
-            ownerUserId,
-            icon,
+            name: str,
+            templateId: str,
+            ownerUserId: str,
+            icon: Union[File, str],
             userIds: list = None,
             subAdminIds: list = None,
             showHistory=False,
@@ -525,7 +529,7 @@ class Dingtalk:
             "user_ids"                       : userIds,
             "subadmin_ids"                   : subAdminIds,
             "uuid"                           : UUID,
-            "icon"                           : icon,
+            "icon": self._file2mediaId(icon),
             "mention_all_authority"          : 1,
             "show_history_type"              : 1 if showHistory else 0,
             "validation_type"                : 1 if validation else 0,
@@ -1313,7 +1317,7 @@ class Dingtalk:
         if self._access_token:
             return self._access_token.token
         else:
-            if not self._access_token.appKey or not self._access_token.appSecret:
+            if self._access_token is None or not self._access_token.appKey or not self._access_token.appSecret:
                 self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
             else:
                 self._access_token.refresh()
@@ -1338,9 +1342,17 @@ class Dingtalk:
             _e['send_data'].append(self)
             if not isinstance(_e.get('event_type'), list):
                 _e['event_type'] = [_e.get('event_type')]
+            traceId = None
+            for e in _e.get('send_data'):
+                if isinstance(e, TraceId):
+                    traceId = e
+                    break
+            for e in _e.get('send_data'):
+                if isinstance(e, (Group, Member, OpenConversationId)):
+                    e.traceId = traceId
             for event in _e.get('event_type'):
                 if event is not None:
-                    await channel.radio(event, *_e.get('send_data'))
+                    await channel.radio(event, *_e.get('send_data'), traceId=traceId)
         if not _e:
             logger.warning("无法解包！")
             return ""
@@ -1348,14 +1360,14 @@ class Dingtalk:
 
     @logger.catch
     def disPackage(self, data: dict) -> dict:
-        trace_id = str(uuid.uuid4())
+        traceId = TraceId(str(uuid.uuid4()))
         if "conversationType" in data:
             conversationType = data.get("conversationType")
             if conversationType is not None:
                 bot = Bot(origin=data)
                 group = Group(origin=data)
                 member = Member(origin=data)
-                bot.trace_id = group.trace_id = member.trace_id = trace_id
+                bot.trace_id = group.trace_id = member.trace_id = traceId
                 if conversationType == "2":
                     at_users = [(userid.get("dingtalkId"), userid.get("staffId")) for userid in data.get("atUsers") if
                                 userid.get("dingtalkId")[userid.get("dingtalkId").rfind('$'):] != bot.origin_id]
@@ -1393,16 +1405,16 @@ class Dingtalk:
                     mes = "Unknown Message"
                     message = MessageChain(mes)
                 # logger.info(at_users)
-                message.trace_id = trace_id
+                message.trace_id = traceId
                 self.log.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}")
                 event = MessageEvent(data.get('msgtype'), data.get('msgId'), data.get('isInAtList'), message, group,
                                      member)
-                self.message_trace_id[trace_id] = {
+                self.message_trace_id[traceId] = {
                     "items": [group, member, message, event, bot]
                 }
                 return {
                     "success"   : True,
-                    "send_data" : [group, member, message, event, bot],
+                    "send_data": [group, member, message, event, bot, traceId],
                     "event_type": [GroupMessage],
                     "returns"   : ""
                 }
@@ -1458,6 +1470,7 @@ class Dingtalk:
                             AppKey=self.config.event_callback.AppKey
                         )
                     }
+                    return_data["send_data"].append(traceId)
                 else:
                     return {
                         "success"   : False,
@@ -1477,12 +1490,12 @@ class Dingtalk:
             if is_debug:
                 logger.info(data)
             res = callback_handler(data)
-            self.message_trace_id[trace_id] = {
+            self.message_trace_id[traceId] = {
                 "items": [res] if not isinstance(res, list) else res
             }
             return {
                 "success"   : True,
-                "send_data" : [res] if not isinstance(res, list) else res,
+                "send_data": ([res] if not isinstance(res, list) else res).append(traceId),
                 "event_type": [res] if not isinstance(res, list) else res,
                 "returns"   : ""
             }
@@ -1816,7 +1829,7 @@ class Dingtalk:
                 logger.info(f"Started at 0.0.0.0:{port}")
 
             self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
-        signal.signal(signal.SIGINT, exit)
+        signal.signal(signal.SIGINT, _exit)
         if not self.loop.is_running():
             self.loop.run_forever()
 
@@ -2161,19 +2174,6 @@ class Dingtalk:
                         stop = True
                         break
 
-    @classmethod
-    # @channel.use(ListenerSchema(listening_events=[RadioComplete]))
-    async def radio_done_callback(cls, trace_id: str = None):
-        if trace_id is not None:
-            if trace_id in cls.message_trace_id:
-                if cls.message_trace_id[trace_id].get("send_messages") is None:
-                    for i in cls.message_trace_id[trace_id].get("items", ""):
-                        if isinstance(i, Group):
-                            await cls.send_message(cls, i, "None Message Send")
-                else:
-                    pass
-        raise NotImplementedError
-
     @staticmethod
     async def ua_checker(
             ua: str,
@@ -2207,6 +2207,15 @@ class Dingtalk:
             if ua == "-":
                 return web.Response(status=400)
         return None
+
+    def is_send_message(self, traceId: TraceId) -> bool:
+        if traceId not in self.message_trace_id:
+            return False
+        if "send_messages" in self.message_trace_id[traceId]:
+            if self.message_trace_id[traceId]["send_messages"] == 0:
+                return False
+            return True
+        return False
 
     @staticmethod
     def _openConversationId2str(openConversationId: Union[OpenConversationId, Group, str]) -> str:
@@ -2247,7 +2256,7 @@ class Dingtalk:
 exit_signal = False
 
 
-def exit(signum, frame):
+def _exit(signum, _):
     global exit_signal
     print("\r", end="")
     if exit_signal:

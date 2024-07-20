@@ -14,14 +14,14 @@ from ..event.event import *
 class Channel:
     reg_event = {}
     pool: ThreadPoolExecutor = None
-    
+
     def __init__(self) -> None:
         pass
-    
+
     def use(self, ListenEvent: Union[list, ListenerSchema]):
         if isinstance(ListenEvent, ListenerSchema):
             ListenEvent = ListenEvent.listening_events
-        
+
         def wrapper(func):
             module_name = inspect.getmodule(func).__name__
             for event in ListenEvent:
@@ -34,15 +34,16 @@ class Channel:
                     self.reg_event[event] = {}
                     self.reg_event[event][module_name] = [func]
             return func
-        
+
         return wrapper
 
-    async def radio(self, RadioEvent, *args, async_await: bool = False, trace_id: str = None, **kwargs):
+    async def radio(self, RadioEvent, *args, async_await: bool = False, traceId: TraceId = None, **kwargs):
         # logger.debug(f"{type(RadioEvent) in self.reg_event} {RadioEvent} {type(RadioEvent)} {self.reg_event}")
-        if not trace_id:
+        # logger.debug(traceId)
+        if not traceId:
             for a in args:
                 if isinstance(a, (Group, Member)):
-                    trace_id = a.trace_id
+                    traceId = a.traceId
                     break
         if type(RadioEvent) is not type:
             RadioEvent = type(RadioEvent)
@@ -68,22 +69,41 @@ class Channel:
                             async_tasks.append(loop.create_task(logger.catch(f)(**send)))
                         else:
                             async_tasks.append(loop.run_in_executor(pool, functools.partial(logger.catch(f), **send)))
-                    if async_tasks and async_await:
+                    should_callback = traceId and RadioEvent is not RadioComplete and app is not None
+
+                    # async_tasks.append(callback())
+
+                    async def _callback():
                         await asyncio.gather(*async_tasks)
+                        if should_callback:
+                            callback()
                         async_tasks.clear()
 
-            task = loop.create_task(radio())
-            if trace_id:
-                def callback(_):
-                    event = RadioComplete()
-                    event.trace_id = trace_id
-                    loop.create_task(self.radio(event, *[event, trace_id]))
+                    if async_tasks:
+                        if async_await:
+                            await _callback()
+                        else:
+                            _ = loop.create_task(_callback())
 
-                task.add_done_callback(callback)
-    
+            app = None
+            for e in args:
+                check = e
+                if type(check) is not type:
+                    check = type(check)
+                if check.__name__ == "Dingtalk":
+                    app = e
+                    break
+            async_await = True
+            _ = loop.create_task(radio())
+
+            def callback():
+                event = RadioComplete()
+                event.trace_id = traceId
+                loop.create_task(self.radio(RadioComplete, *[event, traceId, app], traceId=traceId))
+
     def set_channel(self):
         channel_instance.set(self)
-    
+
     @classmethod
     def current(cls) -> "Channel":
         try:
