@@ -127,15 +127,6 @@ class FixedSizeDict(OrderedDict):
             self.popitem(last=False)
 
 
-class RequestHandler:
-
-    def __init__(self, *handlers):
-        self.handlers = handlers
-
-    def __iter__(self):
-        return iter(self.handlers)
-
-
 class TraceId:
     """TraceId上下文管理器"""
 
