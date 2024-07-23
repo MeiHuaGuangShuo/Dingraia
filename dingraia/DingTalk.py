@@ -1765,11 +1765,11 @@ class Dingtalk:
         """
         if routes is None:
             routes = []
-        for r in routes:
+        for r in routes + self.http_routes:
             if r.method == "POST" and r.path == "/":
-                raise ValueError("请不要在路由列表中添加根路径的POST路由！")
+                raise ValueError(f"请不要在路由列表中添加根路径的POST路由: {r.path} -> {r.handler.__name__}")
             if not isinstance(r, web.RouteDef):
-                raise ValueError(f"路由列表中存在非web.RouteDef类型对象: {r}")
+                raise ValueError(f"路由列表中存在非web.RouteDef类型对象: {repr(r)}")
         Channel().set_channel()
         Saya().set_channel()
         self._clientSession = ClientSession()
