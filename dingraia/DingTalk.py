@@ -1144,6 +1144,19 @@ class Dingtalk:
             robotCode: str = None,
             access_token: str = None
     ):
+        """设置Stream机器人不在线时提示语
+
+        Args:
+            text: 主要文本
+            title: 卡片标题
+            logo: 卡片 logo
+            robotCode: 机器码
+            access_token: 企业的AccessToken
+
+        Returns:
+            dict: 执行结果
+
+        """
         access_token = access_token or self.access_token
         url = "https://api.dingtalk.com/v1.0/innerApi/robot/stream/away/template/update"
         logo = self._file2mediaId(logo)
@@ -1209,7 +1222,11 @@ class Dingtalk:
             access_token: 企业的AccessToken
 
         Returns:
-            File
+            File: 已经填入了mediaId的File对象
+
+        Raises:
+            UploadFileError: 上传失败时抛出
+            UploadFileSizeError: 文件大小超过限制时抛出
 
         """
         if not access_token:
@@ -1305,10 +1322,14 @@ class Dingtalk:
         文档: https://open.dingtalk.com/document/isvapp/download-the-file-content-of-the-robot-receiving-message
         
         Args:
-            downloadCode:
-            path:
+            downloadCode: 下载码
+            path: 下载文件保存路径，需要文件名
 
         Returns:
+            bool: 下载成功返回True
+
+        Raises:
+            DownloadFileError: 下载失败时抛出
 
         """
         if isinstance(downloadCode, File):
@@ -1951,9 +1972,6 @@ class Dingtalk:
                 'ua'           : f'Dingraia/{VERSION}',
                 'localIp'      : get_host_ip()
             }
-            # response = requests.post(url,
-            #                          headers=request_headers,
-            #                          json=request_body)
             response = await self.clientSession.post(url, json=request_body, headers=request_headers)
             try:
                 http_body = await response.json()
