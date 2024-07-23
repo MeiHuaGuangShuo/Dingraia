@@ -159,6 +159,46 @@ class Context:
         self.traceId = None
 
 
+class EasyDict(dict):
+    """字典类，支持属性访问"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __getattr__(self, item, capitalize=False):
+        """
+        获取属性值
+        Args:
+            item: 属性名
+            capitalize: 是否首字母大小写严格
+
+        Returns:
+            Union[None, str, int, float, bool, list, dict]: 属性值
+
+        """
+        res = self.get(item)
+        if capitalize:
+            return res
+        if item not in self.keys():
+            if not isinstance(item, str):
+                return res
+            if item == item.upper() == item.lower():
+                return res
+            if item.startswith("_"):
+                return res
+            if len(str) == 1:
+                return res
+            if item.isupper():
+                item = item[0].lower() + item[1:]
+            else:
+                item = item[0].upper() + item[1:]
+            return self.get(item)
+        return res
+
+    def __setattr__(self, key, value):
+        self.__setitem__(key, value)
+
+
 class UrlBuilder:
     """抽象builder"""
     
