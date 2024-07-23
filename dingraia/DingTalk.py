@@ -106,6 +106,8 @@ class Dingtalk:
     """当收到空消息时的回调"""
     send_message_handler: List[Callable] = []
     """发送消息时的回调，可用于检测发送体"""
+    http_routes: List[web.RouteDef] = []
+    """HTTP路由"""
 
     def __init__(self, config: Config = None):
         self._clientSession = None or self._clientSession
@@ -1841,12 +1843,11 @@ class Dingtalk:
 
             async def start_server():
                 request_handler = [access_logger] + self.config.webRequestHandlers
-                request_handler = RequestHandler(request_handler)
                 app = web.Application(middlewares=request_handler)
                 app.add_routes([
                                    web.post('/', receive_data),
                                    web.get('/', default_page)
-                               ] + routes)
+                               ] + routes + self.http_routes)
                 runner = web.AppRunner(app)
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
