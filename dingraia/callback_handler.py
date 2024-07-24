@@ -2,13 +2,6 @@ from .event.event import *
 from .element import EasyDict
 
 
-def matcher(key: str, *__dict: dict):
-    for __d in __dict:
-        res = __d.get(key[0].lower() + key[1:], __d.get(key[0].upper() + key[1:]))
-        if res:
-            return res
-
-
 def callback_handler(event_body: dict, raw_body=None, trace_id=None):
     if raw_body is None:
         raw_body = {}
