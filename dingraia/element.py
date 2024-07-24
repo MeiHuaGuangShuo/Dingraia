@@ -176,16 +176,31 @@ class EasyDict(dict):
             Union[None, str, int, float, bool, list, dict]: 属性值
 
         """
-        res = self.get(item, __default=default)
+        res = self.get(item, default)
         if item not in self.keys() and not self.capitalize and isinstance(item, str):
             if len(item) == 1:
                 return res
-            if item.isupper():
+            if item[0].isupper():
                 item = item[0].lower() + item[1:]
             else:
                 item = item[0].upper() + item[1:]
             return self.get(item)
         return res
+
+    def __getitem__(self, item):
+        if item not in self.keys() and not self.capitalize and isinstance(item, str):
+            if len(item) == 1:
+                raise KeyError(item)
+            if item[0].isupper():
+                item = item[0].lower() + item[1:]
+            else:
+                item = item[0].upper() + item[1:]
+            if item not in self.keys():
+                raise KeyError(item[0].lower() + item[1:] if item[0].isupper() else item[0].upper() + item[1:])
+            return self.get(item)
+        else:
+            return self.get(item)
+
 
     def __contains__(self, item):
         if self.capitalize or not isinstance(item, str):
