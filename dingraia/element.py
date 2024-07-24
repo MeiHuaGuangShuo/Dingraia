@@ -172,15 +172,6 @@ class EasyDict(dict):
 
         super().__init__(__dict)
 
-    def _convert_to_easydict(self, obj):
-        """递归地将 dict 转换为 EasyDict"""
-        if isinstance(obj, dict):
-            return EasyDict(obj, capitalize=self.capitalize, no_raise=self.no_raise)
-        elif isinstance(obj, list):
-            return [self._convert_to_easydict(item) for item in obj]
-        else:
-            return obj
-
     def __getattr__(self, item, default=None):
         """
         获取属性值
