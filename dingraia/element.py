@@ -200,28 +200,3 @@ class EasyDict(dict):
 
     def __setattr__(self, key, value):
         self.__setitem__(key, value)
-
-
-class UrlBuilder:
-    """抽象builder"""
-    
-    def __init__(self, base_url: str = ""):
-        self.url = base_url
-    
-    def __getattr__(self, u):
-        self.url += "." + str(u)
-        return self
-    
-    def __floordiv__(self, other):
-        self.url += "://" + str(other)
-        return self
-    
-    def __truediv__(self, other):
-        self.url += "/" + str(other)
-        return self
-    
-    def __str__(self) -> str:
-        return self.url
-    
-    def __repr__(self):
-        return self.url
