@@ -56,7 +56,7 @@ class AccessToken:
         if not self.appKey or not self.appSecret:
             raise ValueError
         url = f"https://oapi.dingtalk.com/gettoken?appkey={self.appKey}&appsecret={self.appSecret}"
-        res = requests.get(url)
+        res = requests.get(url)  # 其实我也想改成异步，但是方法是同步的
         if not res.ok:
             raise DingtalkAPIError(res.text)
         res = res.json()
