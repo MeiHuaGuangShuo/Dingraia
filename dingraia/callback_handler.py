@@ -13,7 +13,7 @@ def callback_handler(event_body: dict, raw_body=None, trace_id=None):
     if raw_body is None:
         raw_body = {}
     event = None
-    event_body = EasyDict(event_body, no_raise=True)
+    event_body = EasyDict(event_body, capitalize=False, no_raise=True)
     if 'EventType' in event_body:
         if event_body.EventType in ['ChatQuit', 'chat_remove_member', 'chat_update_title']:
             if event_body.EventType == "ChatQuit":
@@ -29,13 +29,13 @@ def callback_handler(event_body: dict, raw_body=None, trace_id=None):
             event.title = event_body.Title
             event.openConversationId = OpenConversationId(event_body.OpenConversationId)
             event.cropId = event_body.CropId
-            event.dec_mes = dict(event_body)
+            event.dec_mes = event_body.to_dict()
             event.raw_mes = raw_body
     if not event:
         event = BasicEvent()
-        event.dec_mes = dict(event_body)
+        event.dec_mes = event_body.to_dict()
         event.raw_mes = raw_body
         return event
-    bsEvent = BasicEvent(raw_body, dict(event_body))
+    bsEvent = BasicEvent(raw_body, event_body.to_dict())
     event.trace_id = bsEvent.trace_id = trace_id
     return [event, bsEvent]
