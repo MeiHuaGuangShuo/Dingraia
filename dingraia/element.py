@@ -238,4 +238,10 @@ class EasyDict(dict):
         self.__setitem__(key, value)
 
     def __setitem__(self, key, value):
-        super().__setitem__(key, self._convert_to_easydict(value))
+        super().__setitem__(key, value)
+
+    def to_dict(self):
+        for k, v in self.items():
+            if isinstance(v, EasyDict):
+                super().__setitem__(k, v.to_dict())
+        return dict(self)
