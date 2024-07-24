@@ -162,7 +162,7 @@ class Context:
 class EasyDict(dict):
     """字典类，支持属性访问"""
 
-    def __init__(self, __dict: dict, capitalize=False, no_raise=False):
+    def __init__(self, __dict: dict, capitalize=True, no_raise=False):
         self.capitalize = capitalize
         self.no_raise = no_raise
 
