@@ -546,7 +546,7 @@ class Dingtalk:
             userIds: list = [userIds]
             userIds = [self._staffId2str(x) for x in userIds]
         if subAdminIds is not None and not isinstance(subAdminIds, list):
-            subAdminIds = [subAdminIds]
+            subAdminIds: list = [subAdminIds]
             subAdminIds = [str(x) for x in subAdminIds]
         data = {
             "title"                          : name,
