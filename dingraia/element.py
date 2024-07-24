@@ -162,10 +162,24 @@ class Context:
 class EasyDict(dict):
     """字典类，支持属性访问"""
 
-    def __init__(self, *args, capitalize=False, no_raise=False, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, __dict: dict, capitalize=False, no_raise=False):
         self.capitalize = capitalize
         self.no_raise = no_raise
+
+        for k, v in __dict.items():
+            if isinstance(v, dict):
+                __dict[k] = EasyDict(v)
+
+        super().__init__(__dict)
+
+    def _convert_to_easydict(self, obj):
+        """递归地将 dict 转换为 EasyDict"""
+        if isinstance(obj, dict):
+            return EasyDict(obj, capitalize=self.capitalize, no_raise=self.no_raise)
+        elif isinstance(obj, list):
+            return [self._convert_to_easydict(item) for item in obj]
+        else:
+            return obj
 
     def __getattr__(self, item, default=None):
         """
@@ -218,4 +232,10 @@ class EasyDict(dict):
         return item in self.keys()
 
     def __setattr__(self, key, value):
+        if key in ("capitalize", "no_raise"):
+            super().__setattr__(key, value)
+            return
         self.__setitem__(key, value)
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, self._convert_to_easydict(value))
