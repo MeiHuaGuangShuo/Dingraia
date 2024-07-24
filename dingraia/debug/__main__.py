@@ -63,10 +63,13 @@ if __name__ == "__main__":
                 process.send_signal(signal.CTRL_C_EVENT)
                 process.wait()
                 exit_code = 1
-                observer.stop()
-                observer.join()
                 logger.info("程序已退出")
-                sys.exit(0)
+                if isOnReload:
+                    exit_code = -114514
+                else:
+                    observer.stop()
+                    observer.join()
+                    sys.exit(0)
             finally:
                 if exit_code != -114514:
                     exit_code = process.returncode
