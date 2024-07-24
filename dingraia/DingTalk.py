@@ -5,6 +5,8 @@ import functools
 import hmac
 import importlib.metadata
 import inspect
+import json
+import random
 import signal
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
@@ -540,35 +542,38 @@ class Dingtalk:
             UUID: str = str(uuid.uuid1()),
             access_token: str = None
     ):
-        userIds = userIds or [ownerUserId]
-        userIds = [str(x) for x in userIds]
-        userIds = ",".join(userIds)
-        subAdminIds = subAdminIds or [ownerUserId]
-        subAdminIds = [str(x) for x in subAdminIds]
-        subAdminIds = ",".join(subAdminIds)
+        if userIds is not None and not isinstance(userIds, list):
+            userIds: list = [userIds]
+            userIds = [self._staffId2str(x) for x in userIds]
+        if subAdminIds is not None and not isinstance(subAdminIds, list):
+            subAdminIds = [subAdminIds]
+            subAdminIds = [str(x) for x in subAdminIds]
         data = {
             "title"                          : name,
             "template_id"                    : templateId,
             "owner_user_id"                  : ownerUserId,
-            "user_ids"                       : userIds,
-            "subadmin_ids"                   : subAdminIds,
             "uuid"                           : UUID,
             "icon": self._file2mediaId(icon),
             "mention_all_authority"          : 1,
             "show_history_type"              : 1 if showHistory else 0,
             "validation_type"                : 1 if validation else 0,
             "searchable"                     : 1 if searchable else 0,
-            "chat_banned_type"               : 0,
-            "management_type"                : 1,
-            "only_admin_can_ding"            : 0,
-            "all_members_can_create_mcs_conf": 1,
-            "all_members_can_create_calendar": 0,
-            "group_email_disabled"           : 0,
-            "only_admin_can_set_msg_top"     : 1,
-            "add_friend_forbidden"           : 0,
-            "group_live_switch"              : 1,
-            "members_to_admin_chat"          : 0
+            # "chat_banned_type"               : 0,
+            # "management_type"                : 1,
+            # "only_admin_can_ding"            : 0,
+            # "all_members_can_create_mcs_conf": 1,
+            # "all_members_can_create_calendar": 0,
+            # "group_email_disabled"           : 0,
+            # "only_admin_can_set_msg_top"     : 1,
+            # "add_friend_forbidden"           : 0,
+            # "group_live_switch"              : 1,
+            # "members_to_admin_chat"          : 0
         }
+        if userIds:
+            data["user_ids"] = ",".join(userIds)
+        if subAdminIds:
+            data["subadmin_ids"] = ",".join(subAdminIds)
+        logger.info(json.dumps(data, ensure_ascii=False, indent=4))
         if access_token:
             url = f"https://oapi.dingtalk.com/topapi/im/chat/scenegroup/create?access_token={access_token}"
             res = await url_res(url, 'POST', json=data, res='json')
@@ -837,29 +842,46 @@ class Dingtalk:
         userIds = raw['user_ids']
         adminUserIds = raw['sub_admin_staff_ids']
         if raw['success']:
-            res = await self.create_group(title + " - 转生", raw['template_id'], raw['owner_staff_id'],
-                                          raw['icon'], raw['owner_staff_id'], raw['owner_staff_id'],
-                                          raw['management_options']['show_history_type'],
-                                          raw['management_options']['validation_type'],
-                                          raw['management_options']['searchable'])
-            new_openConversationId = OpenConversationId(dict(res['result'])['open_conversation_id'])
-            if res['success']:
-                times = 0
-                while times < 3:
-                    res = await self.get_group(new_openConversationId)
-                    if res.get('success'):
-                        break
-                    await asyncio.sleep(1)
-                else:
-                    logger.error("获取群信息失败超过 3 次!")
-                    return {'success': False}
-                invite_url = res['group_url']
-                await self.send_message(OpenConversationId(openConversationId), MessageChain("新群链接: ", invite_url))
-                res = await self.add_member(new_openConversationId, userIds)
+            res = {}
+            times = 0
+            while not res.get("success") and times < 10:
+                rand_owner = random.choice(userIds)
+                res = await self.create_group(
+                    name=title + " - 转生",
+                    templateId=raw['template_id'],
+                    ownerUserId=rand_owner,
+                    icon=raw['icon'],
+                    userIds=rand_owner,
+                    subAdminIds=rand_owner,
+                    showHistory=raw['management_options']['show_history_type'],
+                    validation=raw['management_options']['validation_type'],
+                    searchable=raw['management_options']['searchable']
+                )
+                times += 1
+            if not res['success']:
+                logger.error(
+                    f"Error while creating the new group! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
+                return res
+            open_conversation_id: dict = res['result']
+            open_conversation_id = open_conversation_id['open_conversation_id']
+            new_openConversationId = OpenConversationId(open_conversation_id)
+            times = 0
+            while times < 3:
+                res = await self.get_group(new_openConversationId)
+                if res.get('success'):
+                    break
+                await asyncio.sleep(1)
+            else:
+                logger.error("获取群信息失败超过 3 次!")
+                return {'success': False}
+            # invite_url = res['group_url']
+            # await self.send_message(OpenConversationId(openConversationId), MessageChain("新群链接: ", invite_url))
+            res = await self.add_member(new_openConversationId, userIds)
             if not res['success']:
                 logger.error(
                     f"Error while adding the member! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
             res = await self.set_admin(new_openConversationId, adminUserIds)
+            await self.change_group_owner(new_openConversationId, raw['owner_staff_id'])
             if not res['success']:
                 logger.error(
                     f"Error while setting the admin(s)! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
