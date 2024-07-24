@@ -162,9 +162,10 @@ class Context:
 class EasyDict(dict):
     """字典类，支持属性访问"""
 
-    def __init__(self, *args, capitalize=False, **kwargs):
+    def __init__(self, *args, capitalize=False, no_raise=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.capitalize = capitalize
+        self.no_raise = no_raise
 
     def __getattr__(self, item, default=None):
         """
@@ -190,17 +191,20 @@ class EasyDict(dict):
     def __getitem__(self, item):
         if item not in self.keys() and not self.capitalize and isinstance(item, str):
             if len(item) == 1:
+                if self.no_raise:
+                    return None
                 raise KeyError(item)
             if item[0].isupper():
                 item = item[0].lower() + item[1:]
             else:
                 item = item[0].upper() + item[1:]
             if item not in self.keys():
+                if self.no_raise:
+                    return None
                 raise KeyError(item[0].lower() + item[1:] if item[0].isupper() else item[0].upper() + item[1:])
             return self.get(item)
         else:
             return self.get(item)
-
 
     def __contains__(self, item):
         if self.capitalize or not isinstance(item, str):
