@@ -3,7 +3,7 @@ import json
 import requests
 from collections import OrderedDict
 from .exceptions import DingtalkAPIError
-from typing import Optional
+from typing import Any, Optional
 
 
 class OpenConversationId:
@@ -162,31 +162,23 @@ class Context:
 class EasyDict(dict):
     """字典类，支持属性访问"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, capitalize=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.capitalize = capitalize
 
-    def __getattr__(self, item, capitalize=False):
+    def __getattr__(self, item, default: Any = None):
         """
         获取属性值
         Args:
             item: 属性名
-            capitalize: 是否首字母大小写严格
 
         Returns:
             Union[None, str, int, float, bool, list, dict]: 属性值
 
         """
-        res = self.get(item)
-        if capitalize:
-            return res
-        if item not in self.keys():
-            if not isinstance(item, str):
-                return res
-            if item == item.upper() == item.lower():
-                return res
-            if item.startswith("_"):
-                return res
-            if len(str) == 1:
+        res = self.get(item, __default=default)
+        if item not in self.keys() and not self.capitalize and isinstance(item, str):
+            if len(item) == 1:
                 return res
             if item.isupper():
                 item = item[0].lower() + item[1:]
@@ -194,6 +186,17 @@ class EasyDict(dict):
                 item = item[0].upper() + item[1:]
             return self.get(item)
         return res
+
+    def __contains__(self, item):
+        if self.capitalize or not isinstance(item, str):
+            return item in self.keys()
+        if len(item) == 1:
+            return item in self.keys()
+        if item.isupper():
+            item = item[0].lower() + item[1:]
+        else:
+            item = item[0].upper() + item[1:]
+        return item in self.keys()
 
     def __setattr__(self, key, value):
         self.__setitem__(key, value)
