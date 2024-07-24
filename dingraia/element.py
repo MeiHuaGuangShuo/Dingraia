@@ -168,7 +168,7 @@ class EasyDict(dict):
 
         for k, v in __dict.items():
             if isinstance(v, dict):
-                __dict[k] = EasyDict(v)
+                __dict[k] = EasyDict(v, capitalize=capitalize, no_raise=no_raise)
 
         super().__init__(__dict)
 
