@@ -114,10 +114,13 @@ class Dingtalk:
     def __init__(self, config: Config = None):
         self._clientSession = None or self._clientSession
         self.context = Context()
-        if Dingtalk.config is None:
-            Dingtalk.config = config
-            cache.enable = config.useDatabase
-            self.stream_connect = config.customStreamConnect
+        if config is not None:
+            if isinstance(config, Config):
+                self.config = config
+                cache.enable = config.useDatabase
+                self.stream_connect = config.customStreamConnect
+            else:
+                raise ValueError(f"Config '{repr(config)}' is not a class:Config or None")
 
     async def send_message(
             self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
@@ -1850,15 +1853,17 @@ class Dingtalk:
         Channel().set_channel()
         Saya().set_channel()
         self._clientSession = ClientSession()
-        self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
-        self.api_request = self._api_request(self.clientSession, self._access_token)
-        self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
         self._start_topic()
         logger.info("Preparing loading...")
-        if self.config.stream:
-            logger.info(f"Loading {len(self.config.stream)} stream task{'s' if len(self.config.stream) > 1 else ''}")
-            for stream in self.config.stream:
-                self._create_stream(stream)
+        if isinstance(self.config, Config):
+            self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
+            if self.config.stream:
+                logger.info(
+                    f"Loading {len(self.config.stream)} stream task{'s' if len(self.config.stream) > 1 else ''}")
+                for stream in self.config.stream:
+                    self._create_stream(stream)
+        self.api_request = self._api_request(self.clientSession, self._access_token)
+        self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
         self.loop.create_task(self.stop(True))
         self.loop.run_until_complete(channel.radio(LoadComplete, self, async_await=True))
         logger.info("Load complete.")
@@ -1919,7 +1924,9 @@ class Dingtalk:
                 return web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html')
 
             async def start_server():
-                request_handler = [access_logger] + self.config.webRequestHandlers
+                request_handler = [access_logger] + (
+                    self.config.webRequestHandlers if isinstance(self.config, Config) else []
+                )
                 app = web.Application(middlewares=request_handler)
                 app.add_routes([
                                    web.post('/', receive_data),
