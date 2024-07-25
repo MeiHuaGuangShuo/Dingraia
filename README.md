@@ -99,14 +99,24 @@ python -m dingraia
 
 ## Debug 模式
 
+### 即时刷新文件模式
+
 程序使用 `Watchdog` 监听**当前环境文件夹下的所有以`.py``结尾的文件**
 ，当文件发生变动时将自动停止并重新运行程序。
 
-### 使用方法
+#### 使用方法
 
 ```shell
 python -m dingraia.debug main.py
 ```
+
+### 程序 Debug 模式
+
+设置环境变量 `Debug=1` 即可
+
+`Linux` 使用 `export Debug=1`
+
+`PowerShell` 使用 `$env:Debug=1`
 
 ## 接收函数
 
