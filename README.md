@@ -1,4 +1,4 @@
-此文档最后更新于24/6/6 v2.0.8
+此文档最后更新于24/7/25 `v2.0.9-Pre`
 
 # 这是什么？
 
@@ -29,9 +29,10 @@ At可以传入Member实例（仅限企业内部机器人）与手机号，会自
 
 # 需求
 
-~~首先得有一个公网IP~~最新支持的Stream模式已经不需要了，还得拥有企业内部开发权限
+拥有企业内部开发权限
 
 你可以在启动机器人时传入空值（忘记是哪里了），在企业内部机器人的情况下，自带临时地址，无需手动输入webhook地址（没有完整体验，只能收发）
+> 仅 `HTTP` 模式下支持此方法
 
 # 实现方法
 
@@ -51,6 +52,8 @@ python main_example.py -k <AppKey> -s <AppSecret>
 **（严禁部署在公共群聊，因为是使用eval进行运算的）**
 
 发送 `/md` 即可发送一个 Markdown 卡片
+
+若命令错误会自动发送提示卡片
 
 ## 安装
 
@@ -79,6 +82,32 @@ pip install dingraia -i https://pypi.tuna.tsinghua.edu.cn/simple
 pip install --upgrade dingraia
 ```
 
+## 控制台模式
+
+程序使用 `IPython` 以实现控制台功能，用户可以直接在控制台执行对应函数，方便操作
+
+> 推荐入口脚本名称为 `main.py` ， 方便使用程序
+
+**注意：在入口脚本中一定要使用 `if __name__ == '__main__'`
+并在其后面使用 `app.start()`，否则会直接运行程序**
+
+### 使用方法
+
+```shell
+python -m dingraia
+```
+
+## Debug 模式
+
+程序使用 `Watchdog` 监听**当前环境文件夹下的所有以`.py``结尾的文件**
+，当文件发生变动时将自动停止并重新运行程序。
+
+### 使用方法
+
+```shell
+python -m dingraia.debug main.py
+```
+
 ## 接收函数
 
 ```python
@@ -95,18 +124,29 @@ def example(app: Dingtalk, group: Group):
     ...
 ```
 
-它们都会并发执行
-~~(你不会异步的话建议直接使用def，这样理论上效率会快一点)~~
-框架全部是异步法方法，虽然提供了函数来运行异步函数，但是还是建议使用异步函数
+它们都会并发执行。但是不推荐使用同步函数，因为框架全部是异步法方法，虽然提供了函数 `run_coroutine` 来运行异步函数，但是还是建议使用原生异步函数，
+或者在异步函数中使用 `dingraia.util.async_exec` 的 `io_bound` 和 `cpu_bound` 运行同步函数
 
 ## 发送消息
 
 ```python
-await app.send_message(Target, MessageChain("Message"))  # 当然也可以传入任意对象，前提是支持str方法
+await app.send_message(Target, MessageChain("Message"))
+# 当然也可以传入任意对象，前提是支持str方法
 # 从 element 导入元素即可发送 MarkDown, ActionCard等支持的消息卡片
 # Target 可以是 Group, Member, OpenConversationId, Webhook, str(链接)
 # 程序会自动判断方法进行发送
 ```
+
+对于使用只发机器人 (`Webhook`) 的用户，可以使用以下方法发送消息
+
+```python
+await app.send_message(
+    "https://oapi.dingtalk.com/robot/send?access_token=***",
+    MessageChain("Webhook 消息")
+)
+```
+
+**注意：仅支持基础消息(普通消息，Markdown, ActionCard, FeedCard)的发送**
 
 ## 发送文件
 
@@ -114,9 +154,26 @@ await app.send_message(Target, MessageChain("Message"))  # 当然也可以传入
 await app.send_message(group, Image('example.png'))
 ```
 
-**注意：请不要使用** 
-`MessageChain(Image(...))` 
-**的方法来发送文件，否则会发送文字消息**
+~~**注意：请不要使用**
+`MessageChain(Image(...))`
+**的方法来发送文件，否则会发送文字消息**~~
+
+`v2.0.9` 已经支持在 `MessageChain` 中塞入 `File` 实例，
+同时支持发送的消息为列表对象。你现在可以这样
+
+```python
+await app.send_message(group, MessageChain(
+    "Before File", Image(r"\root\sese.png"), "After File"
+))
+```
+
+等同于
+
+```python
+await app.send_message(group, [
+    MessageChain("Before File"), Image(r"\root\sese.png"), MessageChain("After File")
+])
+```
 
 ## 撤回消息
 ```python
@@ -126,8 +183,6 @@ await app.recall_message(res)
 ```
 
 若在同步函数中发送消息，可以使用 `app.sendMessage` 方法，参数与 `app.send_message` 一致
-
-注意：机器人的发送提示实际是在准备发送时提示的，不一定代表确实发送成功
 
 # 在同步函数中执行异步函数
 
@@ -152,8 +207,9 @@ def sync_example(app: Dingtalk):
 
 # 衍生项目
 
-[DingtalkStreamPushForward](https://github.com/MeiHuaGuangShuo/DingtalkStreamPushForward) - 
-通过Stream模式转发钉钉服务器的消息到WebSocket和Webhook，支持本项目的连接
+[DingtalkStreamPushForward](https://github.com/MeiHuaGuangShuo/DingtalkStreamPushForward) -
+通过Stream模式转发钉钉服务器的消息到WebSocket和Webhook，支持本项目的连接。
+> 配置方法在 `main_example.py` 中有写，请自行配置
 
 # 最后要说
 
