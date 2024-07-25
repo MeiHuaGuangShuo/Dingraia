@@ -292,7 +292,9 @@ class Dingtalk:
                 else:
                     self.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send))
         try:
-            if 'api' in url:
+            if 'oapi' in url and 'access_token' not in url:
+                resp = await self.api_request.post(url, json=send_data, headers=headers)
+            elif 'api' in url and 'access_token' not in url:
                 resp = await self.api_request.post(url, json=send_data, headers=headers)
             else:
                 resp = await url_res(url, 'POST', json=send_data, headers=headers, res='raw')
