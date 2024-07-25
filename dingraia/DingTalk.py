@@ -343,7 +343,7 @@ class Dingtalk:
 
     async def recall_message(
             self,
-            message: Response = None,
+            message: Union[Response, List[Response]] = None,
             *,
             openConversationId: Union[OpenConversationId, Group, str] = None,
             processQueryKeys: Union[str, List[str]] = None,
@@ -363,6 +363,25 @@ class Dingtalk:
             text
 
         """
+        if isinstance(message, list):
+            if len(message) == 1:
+                message = message[0]
+            else:
+                res = []
+                for m in message:
+                    try:
+                        res.append(await self.recall_message(
+                            message=m,
+                            openConversationId=openConversationId,
+                            processQueryKeys=processQueryKeys,
+                            robotCode=robotCode,
+                            inThreadTime=inThreadTime)
+                                   )
+                    except Exception as err:
+                        logger.exception(err)
+                return res
+        if not message:
+            raise ValueError("No message to recall")
         if message:
             processQueryKeys = message.json()['processQueryKey']
             openConversationId = message.recallOpenConversationId
