@@ -1,6 +1,7 @@
-from typing import Awaitable, List, Union, Callable
+from typing import Awaitable, Dict, List, Union, Callable, Coroutine, Any
 from aiohttp.web import Request
 from aiohttp.web_response import StreamResponse
+from .element import AppKey, AppSecret, EndPoint, Ticket
 
 
 class Bot:
@@ -18,10 +19,10 @@ class Bot:
 
 class CallBack:
 
-    def __init__(self, AesKey: str, Token: str, AppKey: str):
+    def __init__(self, AesKey: str, Token: str, appKey: Union[AppKey, str]):
         self.AesKey = AesKey
         self.Token = Token
-        self.AppKey = AppKey
+        self.AppKey = appKey
         self.elements = [self.AesKey, self.Token, self.AppKey]
 
     def __getitem__(self, item):
@@ -33,14 +34,28 @@ class CallBack:
 
 class Stream:
 
-    def __init__(self, AppKey: str, AppSecret: str):
-        self.AppKey = AppKey
-        self.AppSecret = AppSecret
+    def __init__(self, appKey: Union[AppKey, str], appSecret: Union[AppSecret, str]):
+        self.AppKey = appKey
+        self.AppSecret = appSecret
 
 
 class CustomStreamConnect:
 
-    def __init__(self, StreamUrl: str, SignHandler: Union[str, Callable] = None, ExtraHeaders: dict = None):
+    def __init__(
+            self,
+            StreamUrl: str,
+            SignHandler: Union[
+                str,
+                Callable[
+                    [Union[AppKey, str], Union[AppSecret, str]],
+                    Union[
+                        Dict[Union[EndPoint, str], Union[Ticket, str]],
+                        Coroutine[Any, Any, Dict[Union[EndPoint, str], Union[Ticket, str]]]
+                    ]
+                ]
+            ] = None,
+            ExtraHeaders: dict = None
+    ):
         if ExtraHeaders is None:
             self.ExtraHeaders = {}
         self.StreamUrl = StreamUrl
