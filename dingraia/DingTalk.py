@@ -146,6 +146,11 @@ class Dingtalk:
         if isinstance(target, str):
             if target.startswith('cid'):
                 target = OpenConversationId(target)
+        if isinstance(msg, MessageChain):
+            for e in msg.mes:
+                if isinstance(e, File):
+                    msg = msg.mes
+                    msg = [MessageChain(x) if not isinstance(x, File) else x for x in msg]
         if isinstance(msg, BaseElement):
             if not isinstance(target, OpenConversationId) and not isinstance(target, Member):
                 send_data = msg.data
@@ -162,6 +167,16 @@ class Dingtalk:
                 target.traceId = traceId
             send_data['robotCode'] = self.config.bot.robotCode
             send_data['openConversationId'] = str(target)
+        elif isinstance(msg, list):
+            res = []
+            for m in msg:
+                try:
+                    res.append(await self.send_message(target=target, msg=m, headers=headers))
+                except Exception as err:
+                    logger.exception(err)
+            if len(res) == 1:
+                res = res[0]
+            return res
         else:
             if isinstance(target, OpenConversationId) or isinstance(target, Member):
                 send_data = {
