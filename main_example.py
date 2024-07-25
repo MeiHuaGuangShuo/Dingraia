@@ -54,8 +54,8 @@ if __name__ == '__main__':  # 为了兼容 `python -m dingraia`， 此操作是�
     #     StreamUrl="ws://localhost:12430",
     #     SignHandler="https://lovalhost:12430/v1.0/gateway/connections/open"
     # )
-    app.stream_connect = CustomStreamConnect(
-        StreamUrl="ws://localhost:12430",
-        SignHandler=access_to_custom_stream_connection
-    )
+    # app.stream_connect = CustomStreamConnect(
+    #     StreamUrl="ws://localhost:12430",
+    #     SignHandler=access_to_custom_stream_connection
+    # )
     app.start()
