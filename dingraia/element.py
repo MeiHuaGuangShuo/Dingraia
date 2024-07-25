@@ -236,3 +236,19 @@ class EasyDict(dict):
             if isinstance(v, EasyDict):
                 super().__setitem__(k, v.to_dict())
         return dict(self)
+
+
+class AppKey(str):
+    pass
+
+
+class AppSecret(str):
+    pass
+
+
+class EndPoint(str):
+    pass
+
+
+class Ticket(str):
+    pass
