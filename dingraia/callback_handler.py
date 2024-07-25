@@ -8,13 +8,17 @@ def callback_handler(event_body: dict, raw_body=None, trace_id=None):
     event = None
     event_body = EasyDict(event_body, capitalize=False, no_raise=True)
     if 'EventType' in event_body:
-        if event_body.EventType in ['ChatQuit', 'chat_remove_member', 'chat_update_title']:
+        if event_body.EventType in [
+            'ChatQuit', 'chat_remove_member', 'chat_update_title', 'chat_disband'
+        ]:
             if event_body.EventType == "ChatQuit":
                 event = ChatQuit()
             elif event_body.EventType == 'chat_remove_member':
                 event = ChatKick()
             elif event_body.EventType == 'chat_update_title':
                 event = GroupNameChange()
+            elif event_body.EventType == 'chat_disband':
+                event = GroupDisband()
             event.time = event_body.Timestamp
             event.chatId = event_body.ChatId
             event.operatorUnionId = event_body.OperatorUnionId
