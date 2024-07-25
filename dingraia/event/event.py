@@ -106,3 +106,27 @@ class GroupNameChange(BasicEvent):
     
     cropId: str
     """对应CorpId"""
+
+
+class GroupDisband(BasicEvent):
+
+    operator: int
+    """对应Operator, 为成员的StaffID"""
+
+    operatorUnionId: str
+    """对应operatorUnionId，为成员的UnionID"""
+
+    openConversationId: OpenConversationId
+    """对应OpenConversationId, 为对话ID"""
+
+    title: str
+    """对应title，为更改后的群标题"""
+
+    time: int
+    """TimeStamp*1000"""
+
+    chatId: str
+    """对应ChatId"""
+
+    cropId: str
+    """对应CorpId"""
