@@ -121,9 +121,9 @@ python -m dingraia.debug main.py
 
 设置环境变量 `Debug=1` 即可
 
-`Linux` 使用 `export Debug=1`
+`Linux` 使用 `export DEBUG=1`
 
-`PowerShell` 使用 `$env:Debug=1`
+`PowerShell` 使用 `$env:DEBUG=1`
 
 ## 接收函数
 
