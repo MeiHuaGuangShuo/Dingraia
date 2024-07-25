@@ -874,10 +874,10 @@ class Dingtalk:
             else:
                 logger.error("获取群信息失败超过 3 次!")
                 return {'success': False}
-            # invite_url = res['group_url']
+            # invite_url = res['group_url']cidvFgTQiWWMHmvDrnf/ELoVA==
             # await self.send_message(OpenConversationId(openConversationId), MessageChain("新群链接: ", invite_url))
             res = await self.add_member(new_openConversationId, userIds)
-            if not res['success']:
+            if not res.get('success'):
                 logger.error(
                     f"Error while adding the member! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
             res = await self.set_admin(new_openConversationId, adminUserIds)
