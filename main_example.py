@@ -1,6 +1,6 @@
 import pkgutil
 from dingraia.DingTalk import Dingtalk
-from dingraia.config import Config, Bot, CallBack, Stream
+from dingraia.config import Config, Bot, CallBack, CustomStreamConnect, Stream
 from dingraia.saya import Saya
 import argparse
 
@@ -22,6 +22,11 @@ app = Dingtalk(
                           'AppSecret1')]
            ))
 
+
+async def access_to_custom_stream_connection(appKey: str, appSecret: str):
+    return {"endpoint": "", "ticket": ""}
+
+
 if __name__ == '__main__':  # 为了兼容 `python -m dingraia`， 此操作是必须的
     parser = argparse.ArgumentParser(description=describe)
     parser.add_argument("--app-key", "-k", type=str, help="Stream 模式下的AppKey")
@@ -42,4 +47,15 @@ if __name__ == '__main__':  # 为了兼容 `python -m dingraia`， 此操作是�
                 if module_info.name.startswith("_"):
                     continue
                 saya.require(f"{module_dir}.{module_info.name}")
+    # 下面是关于自定义 Stream 连接的代码
+    # 可用于链接项目 DingtalkStreamPushForward 以实现事件多播
+    # SignHandler 可以是一个函数，同步或异步，也可以是网址以实现和钉钉同样的连接鉴权
+    # app.stream_connect = CustomStreamConnect(
+    #     StreamUrl="ws://localhost:12430",
+    #     SignHandler="https://lovalhost:12430/v1.0/gateway/connections/open"
+    # )
+    app.stream_connect = CustomStreamConnect(
+        StreamUrl="ws://localhost:12430",
+        SignHandler=access_to_custom_stream_connection
+    )
     app.start()
