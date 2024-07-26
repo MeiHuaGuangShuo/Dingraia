@@ -1027,6 +1027,25 @@ class Dingtalk:
                                                 json=data)
         return res
 
+    async def disband_group(self, openConversationId: Union[OpenConversationId, Group, str]):
+        """伪解散群，原理是移除所有成员
+
+        Args:
+            openConversationId: 群对话ID, 可以是OpenConversationId或Group对象
+
+        Returns:
+
+        """
+        group_info = await self.get_group(openConversationId=openConversationId)
+        if not group_info['success']:
+            logger.error(
+                f"Error while getting group info! Response: {json.dumps(group_info, indent=4, ensure_ascii=False)}")
+            return group_info
+        user_ids = group_info['user_ids']
+        res = await self.kick_member(openConversationId=openConversationId, memberStaffIds=user_ids)
+        return res
+
+
     async def change_group_title(self, openConversationId: Union[OpenConversationId, Group, str], title: str):
         """
         
