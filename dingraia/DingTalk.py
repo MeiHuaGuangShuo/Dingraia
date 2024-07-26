@@ -1045,7 +1045,6 @@ class Dingtalk:
         res = await self.kick_member(openConversationId=openConversationId, memberStaffIds=user_ids)
         return res
 
-
     async def change_group_title(self, openConversationId: Union[OpenConversationId, Group, str], title: str):
         """
         
