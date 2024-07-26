@@ -2,10 +2,9 @@ import copy
 import hashlib
 import json
 import os
-import requests
-from urllib.parse import urlparse
 from pathlib import Path
-from typing import Union, BinaryIO, List
+from typing import BinaryIO, List, Union
+
 from ..model import Member
 
 
