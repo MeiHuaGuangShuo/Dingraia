@@ -1745,8 +1745,7 @@ class Dingtalk:
                         resp = await response.json()
                         if resp.get("errcode"):
                             return
-                        if resp.ok:
-                            cache.add_openapi_count()
+                        cache.add_openapi_count()
                     except json.JSONDecodeError:
                         pass
                     except Exception as e:
@@ -1825,8 +1824,7 @@ class Dingtalk:
                         resp = await response.json()
                         if resp.get("errcode"):
                             return
-                        if resp.ok:
-                            cache.add_openapi_count()
+                        cache.add_openapi_count()
                     except json.JSONDecodeError:
                         pass
                     except Exception as e:
