@@ -1745,12 +1745,12 @@ class Dingtalk:
                         resp = await response.json()
                         if resp.get("errcode"):
                             return
+                        if resp.ok:
+                            cache.add_openapi_count()
                     except json.JSONDecodeError:
                         pass
                     except Exception as e:
                         logger.exception(e)
-                        logger.warning("此次请求会继续提交到次数")
-                    cache.add_openapi_count()
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
 
@@ -1825,12 +1825,12 @@ class Dingtalk:
                         resp = await response.json()
                         if resp.get("errcode"):
                             return
+                        if resp.ok:
+                            cache.add_openapi_count()
                     except json.JSONDecodeError:
                         pass
                     except Exception as e:
                         logger.exception(e)
-                        logger.warning("此次请求会继续提交到次数")
-                    cache.add_openapi_count()
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
 
@@ -1956,7 +1956,10 @@ class Dingtalk:
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
+        """程序使用的loop，始终存在，"""
         if not self._loop:
+            self._loop = asyncio.get_event_loop()
+        if self._loop.is_closed():
             self._loop = asyncio.get_event_loop()
         return self._loop
 
