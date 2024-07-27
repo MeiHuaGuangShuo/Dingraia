@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import BinaryIO, List, Union
+from typing import BinaryIO, Iterable, List, Union
 
 from ..model import Member
 
@@ -331,8 +331,8 @@ class ActionCard(BaseElement):
 
 
 class FeedCard(BaseElement):
-    
-    def __init__(self, links: List[List[str]]):
+
+    def __init__(self, links: Iterable[Iterable[str]]):
         """发送FeedCard消息
 
         Args:
@@ -346,6 +346,8 @@ class FeedCard(BaseElement):
             }
         }
         for link in self.links:
+            if isinstance(link, FeedCardNode):
+                link = list(link)
             if link[0] and link[1]:
                 self.data['feedCard']['links'].append({
                     "title" : str(link[0]), "messageURL": _link_detect(str(link[1])),
@@ -354,6 +356,24 @@ class FeedCard(BaseElement):
     
     def __str__(self):
         return "[FeedCard]"
+
+
+class FeedCardNode:
+
+    def __init__(self, title: str, messageUrl: str, picUrl: str):
+        self.title = title
+        self.messageUrl = messageUrl
+        self.picUrl = picUrl
+        self.items = [self.title, self.messageUrl, self.picUrl]
+
+    def __str__(self):
+        return f"[{self.title}]({self.messageUrl})"
+
+    def __iter__(self):
+        return iter(self.items)
+
+    def __repr__(self):
+        return f"<FeedCardNode(title={self.title}, messageUrl={self.messageUrl}, picUrl={self.picUrl})>"
 
 
 class At:
