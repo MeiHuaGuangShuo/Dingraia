@@ -1,6 +1,6 @@
 import time
 import json
-import requests
+import urllib.request
 from collections import OrderedDict
 from .exceptions import DingtalkAPIError
 from typing import Optional
@@ -56,10 +56,10 @@ class AccessToken:
         if not self.appKey or not self.appSecret:
             raise ValueError
         url = f"https://oapi.dingtalk.com/gettoken?appkey={self.appKey}&appsecret={self.appSecret}"
-        res = requests.get(url)  # 其实我也想改成异步，但是方法是同步的
-        if not res.ok:
-            raise DingtalkAPIError(res.text)
-        res = res.json()
+        with urllib.request.urlopen(url) as response:
+            if response.status != 200:
+                raise DingtalkAPIError(response.read().decode('utf-8'))
+            res = json.loads(response.read().decode('utf-8'))
         self.token = res['access_token']
         self.expired = res['expires_in'] if res['expires_in'] > 1600000000 else int(time.time()) + res['expires_in']
         return self
