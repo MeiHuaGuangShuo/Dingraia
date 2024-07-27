@@ -8,14 +8,15 @@ async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, 
             url="https://github.com/MeiHuaGuangShuo/Dingraia",
             title="GitHub - Dingraia",
             text="Dingraia 作为一款开源的异步Python钉钉框架，可以方便地快速创建一个自己的钉钉群聊应答机器人",
-            pic_url="https://gh-card.dev/repos/MeiHuaGuangShuo/Dingraia.svg"
+            pic_url="https://img.tukuppt.com/png_preview/00/32/92/cXqzfc4Jhz.jpg!/fw/780"
         ))
     elif str(message) == "/ac":
         await app.send_message(group, ActionCard(
-            text="![GitHub icon](https://gh-card.dev/repos/MeiHuaGuangShuo/Dingraia.svg)\n# Dingraia ActionCard Test",
+            text="![GitHub icon](https://img.tukuppt.com/png_preview/00/32/92/cXqzfc4Jhz.jpg!/fw/780)\n"
+                 "# Dingraia ActionCard Test",
             button=[
-                ["Dingraia", "https://github.com/MeiHuaGuangShuo/Dingraia"],
-                ["MeiHuaGuangShuo", "https://github.com/MeiHuaGuangShuo"],
+                ActionCardButton(text="Dingraia", url="https://github.com/MeiHuaGuangShuo/Dingraia"),
+                ActionCardButton(text="MeiHuaGuangShuo", url="https://github.com/MeiHuaGuangShuo")
             ]
         ))
     elif str(message) == "/fd":
