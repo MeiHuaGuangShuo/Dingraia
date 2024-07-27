@@ -2,16 +2,18 @@ import copy
 import hashlib
 import json
 import os
+import warnings
 from pathlib import Path
 from typing import BinaryIO, Iterable, List, Union
 
 from ..model import Member
+from ..log import logger
 
 
 class File:
     type: "File"
-    
-    file: Union[BinaryIO, bytes]
+
+    file: Union[BinaryIO, bytes, str]
     
     size: int
     
@@ -211,18 +213,24 @@ class Markdown(BaseElement):
 
 
 class ActionCard(BaseElement):
-    
-    def __init__(self, text: str, button: List[List[str]], title: str = "[ActionCard]", orientation: int = 0):
+
+    def __init__(
+            self, text: str, buttons: List[List[str]] = None, title: str = "[ActionCard]", orientation: int = 0,
+            button: list[list[str]] = None
+            ):
         """发送ActionCard消息
 
         Args:
             title: 标题(似乎没啥用)
             text: Markdown文本
-            button: 按钮列表，即使只有一个也要使用[[title, url], ...]的格式
+            buttons: 按钮列表，即使只有一个也要使用[[title, url], ...]的格式
             orientation: 排列方向，0为竖向，1为横向，建议横向不超过5个字
         """
+        if button:
+            warnings.warn("button is deprecated at v2.1.0 and later, use buttons instead!", DeprecationWarning)
+            logger.warning("1")
         self.orientation = orientation
-        self.button = button
+        self.buttons = buttons or button or []
         self.text = text
         self.title = title
         self.data = {
@@ -233,14 +241,14 @@ class ActionCard(BaseElement):
                 "btnOrientation": str(self.orientation)
             }
         }
-        if len(self.button) == 2 and self.orientation:
+        if len(self.buttons) == 2 and self.orientation:
             raise TypeError(
-                "Only 2 bottoms are allowed when orientation is 1, but %s bottoms given!" % len(self.button))
-        if len(self.button) > 5:
-            raise TypeError("Only 5 bottoms are allowed but %s bottoms given!" % len(self.button))
-        if len(self.button) == 1:
-            self.data['actionCard']['singleTitle'] = str(self.button[0][0])
-            self.data['actionCard']['singleURL'] = _link_detect(str(self.button[0][1]))
+                "Only 2 bottoms are allowed when orientation is 1, but %s bottoms given!" % len(self.buttons))
+        if len(self.buttons) > 5:
+            raise TypeError("Only 5 bottoms are allowed but %s bottoms given!" % len(self.buttons))
+        if len(self.buttons) == 1:
+            self.data['actionCard']['singleTitle'] = str(self.buttons[0][0])
+            self.data['actionCard']['singleURL'] = _link_detect(str(self.buttons[0][1]))
             self.data['actionCard'].pop('btnOrientation')
             self.template = {
                 "msgKey"  : "sampleActionCard",
@@ -248,69 +256,69 @@ class ActionCard(BaseElement):
             }
         else:
             self.data['actionCard']['btns'] = []
-            for b in self.button:
+            for b in self.buttons:
                 if b[0] and b[1]:
                     self.data['actionCard']['btns'].append(
                         {"title": str(b[0]), "actionURL": _link_detect(str(b[1]))})
             if not self.orientation:
-                if len(self.button) == 2:
+                if len(self.buttons) == 2:
                     self.template = {
                         "msgKey"  : "sampleActionCard2",
                         "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
-                            "actionTitle1": str(self.button[0][0]),
-                            "actionURL1"  : str(self.button[0][1]),
-                            "actionTitle2": str(self.button[1][0]),
-                            "actionURL2"  : str(self.button[1][1]),
+                            "actionTitle1": str(self.buttons[0][0]),
+                            "actionURL1"  : str(self.buttons[0][1]),
+                            "actionTitle2": str(self.buttons[1][0]),
+                            "actionURL2"  : str(self.buttons[1][1]),
                         })
                     }
-                elif len(self.button) == 3:
+                elif len(self.buttons) == 3:
                     self.template = {
                         "msgKey"  : "sampleActionCard3",
                         "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
-                            "actionTitle1": str(self.button[0][0]),
-                            "actionURL1"  : str(self.button[0][1]),
-                            "actionTitle2": str(self.button[1][0]),
-                            "actionURL2"  : str(self.button[1][1]),
-                            "actionTitle3": str(self.button[2][0]),
-                            "actionURL3"  : str(self.button[2][1]),
+                            "actionTitle1": str(self.buttons[0][0]),
+                            "actionURL1"  : str(self.buttons[0][1]),
+                            "actionTitle2": str(self.buttons[1][0]),
+                            "actionURL2"  : str(self.buttons[1][1]),
+                            "actionTitle3": str(self.buttons[2][0]),
+                            "actionURL3"  : str(self.buttons[2][1]),
                         })
                     }
-                elif len(self.button) == 4:
+                elif len(self.buttons) == 4:
                     self.template = {
                         "msgKey"  : "sampleActionCard4",
                         "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
-                            "actionTitle1": str(self.button[0][0]),
-                            "actionURL1"  : str(self.button[0][1]),
-                            "actionTitle2": str(self.button[1][0]),
-                            "actionURL2"  : str(self.button[1][1]),
-                            "actionTitle3": str(self.button[2][0]),
-                            "actionURL3"  : str(self.button[2][1]),
-                            "actionTitle4": str(self.button[3][0]),
-                            "actionURL4"  : str(self.button[3][1]),
+                            "actionTitle1": str(self.buttons[0][0]),
+                            "actionURL1"  : str(self.buttons[0][1]),
+                            "actionTitle2": str(self.buttons[1][0]),
+                            "actionURL2"  : str(self.buttons[1][1]),
+                            "actionTitle3": str(self.buttons[2][0]),
+                            "actionURL3"  : str(self.buttons[2][1]),
+                            "actionTitle4": str(self.buttons[3][0]),
+                            "actionURL4"  : str(self.buttons[3][1]),
                         })
                     }
-                elif len(self.button) == 5:
+                elif len(self.buttons) == 5:
                     self.template = {
                         "msgKey"  : "sampleActionCard5",
                         "msgParam": json.dumps({
                             "title"       : str(self.title),
                             "text"        : str(self.text),
-                            "actionTitle1": str(self.button[0][0]),
-                            "actionURL1"  : str(self.button[0][1]),
-                            "actionTitle2": str(self.button[1][0]),
-                            "actionURL2"  : str(self.button[1][1]),
-                            "actionTitle3": str(self.button[2][0]),
-                            "actionURL3"  : str(self.button[2][1]),
-                            "actionTitle4": str(self.button[3][0]),
-                            "actionURL4"  : str(self.button[3][1]),
-                            "actionTitle5": str(self.button[4][0]),
-                            "actionURL5"  : str(self.button[4][1]),
+                            "actionTitle1": str(self.buttons[0][0]),
+                            "actionURL1"  : str(self.buttons[0][1]),
+                            "actionTitle2": str(self.buttons[1][0]),
+                            "actionURL2"  : str(self.buttons[1][1]),
+                            "actionTitle3": str(self.buttons[2][0]),
+                            "actionURL3"  : str(self.buttons[2][1]),
+                            "actionTitle4": str(self.buttons[3][0]),
+                            "actionURL4"  : str(self.buttons[3][1]),
+                            "actionTitle5": str(self.buttons[4][0]),
+                            "actionURL5"  : str(self.buttons[4][1]),
                         })
                     }
             else:
@@ -319,15 +327,38 @@ class ActionCard(BaseElement):
                     "msgParam": json.dumps({
                         "title"       : str(self.title),
                         "text"        : str(self.text),
-                        "buttonTitle1": str(self.button[0][0]),
-                        "buttonURL1"  : str(self.button[0][1]),
-                        "buttonTitle2": str(self.button[1][0]),
-                        "buttonURL2"  : str(self.button[1][1]),
+                        "buttonTitle1": str(self.buttons[0][0]),
+                        "buttonURL1"  : str(self.buttons[0][1]),
+                        "buttonTitle2": str(self.buttons[1][0]),
+                        "buttonURL2"  : str(self.buttons[1][1]),
                     })
                 }
     
     def __str__(self):
         return self.title if self.title else "[ActionCard]"
+
+    @property
+    def button(self):
+        warnings.warn("button is deprecated at v2.1.0 and later, use buttons instead!", DeprecationWarning)
+        return self.buttons
+
+
+class ActionCardButton(list):
+
+    def __init__(self, text: str, url: str):
+        self.text = text
+        self.url = url
+        self.items = [self.text, self.url]
+        super().__init__(self.items)
+
+    def __str__(self):
+        return f"[{self.text}]({self.url})"
+
+    def __iter__(self):
+        return iter(self.items)
+
+    def __repr__(self):
+        return f"<ActionCardButton(title={self.text}, url={self.url})>"
 
 
 class FeedCard(BaseElement):
