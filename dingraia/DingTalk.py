@@ -1653,37 +1653,6 @@ class Dingtalk:
     def get_api_counts():
         return cache.get_api_counts()
 
-    @staticmethod
-    async def _send(url, send_data, headers=None):
-        delog.info(f"发送中:{url}", no=40)
-        if url and "http" not in url:
-            url = 'http://' + url
-        if not url:
-            logger.error("Empty send url!")
-            return [False]
-        try:
-            resp = await url_res(url, method='POST', json=send_data, headers=headers, res='json')
-            delog.success("发送完成")
-        except Exception as err:
-            logger.exception(f"发送失败！", err)
-            return [False]
-        else:
-            delog.info(resp, no=40)
-            if 'errcode' in resp:
-                if not resp['errcode']:
-                    delog.success(f"Success!", no=40)
-                    return [True, resp]
-                else:
-                    logger.error(f"Failed to send the message!err_code：{resp['errcode']}, err_msg：{resp['errmsg']}")
-                    return [False, resp['errcode'], resp['errmsg']]
-            else:
-                if 'processQueryKey' in resp:
-                    delog.success(f"Success!", no=40)
-                    return [True, resp]
-                else:
-                    logger.error(f"Failed to send the message!err_msg：{resp}, send_data: {send_data}")
-                    return [False, resp]
-
     class _api_request:
 
         def __init__(self, clientSession: ClientSession, access_token: Union[AccessToken, str]):
@@ -1852,7 +1821,7 @@ class Dingtalk:
 
     def start(self, port: int = None, routes: List[web.RouteDef] = None):
         """
-        
+
         Args:
             port: 启动端口
             routes: 路由列表
@@ -1861,6 +1830,10 @@ class Dingtalk:
             None
 
         """
+        asyncio.run(self._start(port=port, routes=routes))
+        logger.info("Exited.")
+
+    async def _start(self, port: int = None, routes: List[web.RouteDef] = None):
         if routes is None:
             routes = []
         for r in routes + self.http_routes:
@@ -1882,9 +1855,8 @@ class Dingtalk:
                     self._create_stream(stream)
         self.api_request = self._api_request(self.clientSession, self._access_token)
         self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
-        self.loop.create_task(self.stop(True))
         load_modules()
-        self.loop.run_until_complete(channel.radio(LoadComplete, self, async_await=True))
+        await channel.radio(LoadComplete, self, async_await=True)
         logger.info("Load complete.")
         if port:
 
@@ -1947,6 +1919,7 @@ class Dingtalk:
                     self.config.webRequestHandlers if isinstance(self.config, Config) else []
                 )
                 app = web.Application(middlewares=request_handler)
+                app = web.Application()
                 app.add_routes([
                                    web.post('/', receive_data),
                                    web.get('/', default_page)
@@ -1958,9 +1931,10 @@ class Dingtalk:
                 logger.info(f"Started at 0.0.0.0:{port}")
 
             self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
-        signal.signal(signal.SIGINT, _exit)
+        signal.signal(signal.SIGINT, self.stop_for_signal)
         if not self.loop.is_running():
             self.loop.run_forever()
+        await asyncio.gather(*self.async_tasks)
 
     async def _init_console(self):
         self._clientSession = ClientSession()
@@ -2253,12 +2227,18 @@ class Dingtalk:
             logger.info(f"Create async task [{name}]")
         return task, name
 
-    async def stop(self, waitForSignal=False):
-        if waitForSignal:
-            while not exit_signal:
-                await asyncio.sleep(0.5)
-        else:
-            logger.warning("Stop signal was called!")
+    def stop_for_signal(self, signum, _):
+        global exit_signal
+        print("\r", end="")
+        if exit_signal:
+            logger.warning(f"User forced to quit")
+            sys.exit(1)
+        logger.warning(f"Received Signal {signum}")
+        exit_signal = True
+        # asyncio.run_coroutine_threadsafe(self.stop(), asyncio.new_event_loop())
+        self.loop.create_task(self.stop())
+
+    async def stop(self):
         self.log.info("Stopping task loop")
         if self.clientSession:
             await self.clientSession.close()
@@ -2274,7 +2254,6 @@ class Dingtalk:
                         logger.error(f"Task [{name}] canceled failed!")
                     else:
                         logger.success(f"Task [{name}] canceled successfully")
-        self.loop.stop()
 
     async def coroutine_watcher(self, function, *args, **kwargs):
         stop = False
@@ -2284,7 +2263,10 @@ class Dingtalk:
             self.async_tasks.append(task)
             create_time = time.time()
             while True:
-                await asyncio.sleep(2)
+                try:
+                    await asyncio.sleep(1)
+                except asyncio.CancelledError:
+                    return
                 if task.done():
                     if not task.cancelled():
                         if task.exception():
