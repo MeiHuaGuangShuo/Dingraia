@@ -5,7 +5,6 @@ import functools
 import hmac
 import importlib.metadata
 import inspect
-import json
 import random
 import signal
 from concurrent.futures import ThreadPoolExecutor
@@ -15,7 +14,7 @@ import mutagen
 import socket
 import sys
 import urllib.parse
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, urlparse
 import uuid
 from functools import reduce
 from typing import Callable, Dict, Coroutine, Literal
@@ -37,6 +36,7 @@ from .http_page import *
 from .message.chain import MessageChain
 from .message.element import *
 from .model import Group, Webhook
+from .module import load_modules
 from .saya import Channel, Saya
 from .signer import sign_js, decrypt
 from .tools.debug import delog
@@ -1883,6 +1883,7 @@ class Dingtalk:
         self.api_request = self._api_request(self.clientSession, self._access_token)
         self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
         self.loop.create_task(self.stop(True))
+        load_modules()
         self.loop.run_until_complete(channel.radio(LoadComplete, self, async_await=True))
         logger.info("Load complete.")
         if port:
