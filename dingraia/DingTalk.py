@@ -23,7 +23,6 @@ import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
 
-
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -588,15 +587,15 @@ class Dingtalk:
             subAdminIds: list = [subAdminIds]
             subAdminIds = [str(x) for x in subAdminIds]
         data = {
-            "title"                          : name,
-            "template_id"                    : templateId,
-            "owner_user_id"                  : ownerUserId,
-            "uuid"                           : UUID,
-            "icon": self._file2mediaId(icon),
-            "mention_all_authority"          : 1,
-            "show_history_type"              : 1 if showHistory else 0,
-            "validation_type"                : 1 if validation else 0,
-            "searchable"                     : 1 if searchable else 0,
+            "title"                : name,
+            "template_id"          : templateId,
+            "owner_user_id"        : ownerUserId,
+            "uuid"                 : UUID,
+            "icon"                 : self._file2mediaId(icon),
+            "mention_all_authority": 1,
+            "show_history_type"    : 1 if showHistory else 0,
+            "validation_type"      : 1 if validation else 0,
+            "searchable"           : 1 if searchable else 0,
             # "chat_banned_type"               : 0,
             # "management_type"                : 1,
             # "only_admin_can_ding"            : 0,
@@ -1934,6 +1933,15 @@ class Dingtalk:
         signal.signal(signal.SIGINT, self.stop_for_signal)
         if not self.loop.is_running():
             self.loop.run_forever()
+
+        async def keep_running():
+            try:
+                while True:
+                    await asyncio.sleep(600)
+            except asyncio.CancelledError:
+                return
+
+        self.create_task(keep_running(), show_info=False)
         await asyncio.gather(*self.async_tasks)
 
     async def _init_console(self):
