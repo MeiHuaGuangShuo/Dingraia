@@ -1,5 +1,4 @@
 aiohttp>=3.9.2
-requests>=2.31.0
 watchdog
 websockets
 prompt_toolkit

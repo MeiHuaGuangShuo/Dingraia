@@ -1,3 +1,7 @@
 from dingraia.module import load_modules
+from dingraia.lazy import channel, ListenerSchema, LoadComplete
 
-load_modules()
+
+@channel.use(ListenEvent=ListenerSchema(listening_events=[LoadComplete]))
+def init():
+    load_modules()
