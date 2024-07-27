@@ -8,7 +8,7 @@ async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, 
             url="https://github.com/MeiHuaGuangShuo/Dingraia",
             title="GitHub - Dingraia",
             text="Dingraia 作为一款开源的异步Python钉钉框架，可以方便地快速创建一个自己的钉钉群聊应答机器人",
-            pic_url="https://github.com/favicon.ico"
+            pic_url="https://gh-card.dev/repos/MeiHuaGuangShuo/Dingraia.svg"
         ))
     elif str(message) == "/ac":
         await app.send_message(group, ActionCard(
@@ -27,16 +27,16 @@ async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, 
                     "https://static2.srcdn.com/wordpress/wp-content/uploads/2021/02/Rick-Astley-Never-Gonna-Give-You"
                     "-Up-Remastered-Header.jpg"
                 ],
-                [
-                    "【手绘逐帧meme】一键三连变成女孩子有多可爱！❤️-哔哩哔哩",
-                    "https://www.bilibili.com/video/BV1TK421Y78b",
-                    "https://i1.hdslb.com/bfs/archive/00265597ac97f440b886b7a6a8eb3dd2b4537f09.jpg"
-                ],
-                [
+                FeedCardNode(
+                    title="【手绘逐帧meme】一键三连变成女孩子有多可爱！❤️-哔哩哔哩",
+                    messageUrl="https://www.bilibili.com/video/BV1TK421Y78b",
+                    picUrl="https://i1.hdslb.com/bfs/archive/00265597ac97f440b886b7a6a8eb3dd2b4537f09.jpg"
+                ),
+                (
                     "全部ホントで全部ウソ / Cover* ななひら-哔哩哔哩",
                     "https://www.bilibili.com/video/BV17m411r7PG",
                     "https://i1.hdslb.com/bfs/archive/2abb17f5797ebe00ad356cccd96c50182cbf595a.jpg"
-                ],
+                ),
             ]
         ))
     elif str(message) == "/audio":
