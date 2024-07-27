@@ -1,4 +1,5 @@
 import sqlite3
+import datetime
 from .exceptions import *
 
 
@@ -105,16 +106,18 @@ class Cache:
             self.commit()
         else:
             raise SQLError(f"Index '{index}' does not found in the table '{table}'")
-    
+
     def add_openapi_count(self, times: int = 1):
-        if self.key_exists('counts', 'type', 'openApi'):
-            self.execute(f"UPDATE `counts` SET count=count+{times} WHERE type='openApi';")
+        current_month = datetime.datetime.now().strftime('openApi_%Y_%m')
+        if self.key_exists('counts', 'type', current_month):
+            self.execute(f"UPDATE `counts` SET count=count+{times} WHERE type='{current_month}';")
         else:
-            self.execute(f"INSERT INTO `counts` (type, count) VALUES ('openApi', {times});")
+            self.execute(f"INSERT INTO `counts` (type, count) VALUES ('{current_month}', {times});")
         self.commit()
     
     def get_api_counts(self):
-        res = self.execute("SELECT * FROM `counts` WHERE type='openApi'", result=True)
+        current_month = datetime.datetime.now().strftime('openApi_%Y_%m')
+        res = self.execute(f"SELECT * FROM `counts` WHERE type='{current_month}'", result=True)
         if res:
             return res[0][1]
         return 0
