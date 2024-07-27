@@ -1,4 +1,4 @@
 MainVersion = 2
-SideVersion = "0.9"
-PreVersion = False
+SideVersion = "1.0"
+PreVersion = True
 VERSION = str(MainVersion) + "." + SideVersion + ("-Pre" if PreVersion else "")
