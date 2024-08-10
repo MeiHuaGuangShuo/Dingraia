@@ -466,7 +466,7 @@ class Dingtalk:
             *,
             callbackType: Literal["auto", "Stream", "HTTP"] = "auto",
             outTrackId: str = str(uuid.uuid1()),
-    ) -> str:
+    ) -> CardResponse:
         """
         
         Args:
@@ -508,7 +508,10 @@ class Dingtalk:
             errCode = (await resp.json()).get("errcode")
             raise err_reason[errCode](f"Error while deliver the card.Code={resp.status} text={await resp.text()}")
         self._add_message_times(target=target)
-        return outTrackId
+        resp = CardResponse()
+        resp.outTrackId = outTrackId
+        resp.card_data = cardData["cardData"]
+        return resp
 
     async def send_markdown_card(
             self,
@@ -528,7 +531,7 @@ class Dingtalk:
             supportForward: 是否支持折叠
 
         Returns:
-            str: outTrackId
+            class::CardResponse: 卡片响应
 
         """
         if isinstance(logo, File):
@@ -555,17 +558,16 @@ class Dingtalk:
         }
         return await self.send_card(target=target, cardData=data, outTrackId=outTrackId)
 
-    async def update_card(self, outTrackId, cardParamData):
-        if isinstance(cardParamData, Markdown):
-            cardParamData = {
-                "markdown": cardParamData.text,
-                "title"   : cardParamData.title
-            }
+    async def update_card(self, outTrackId, cardData):
+        if isinstance(cardData, Markdown):
+            cardData = {
+                "cardParamMap": {
+                    "markdown": cardData.text,
+                    "title"   : cardData.title
+                }}
         body = {
             "outTrackId": outTrackId,
-            "cardData"  : {
-                "cardParamMap": cardParamData
-            }
+            "cardData": cardData
         }
         resp = await self.api_request.put('/v1.0/card/instances', json=body)
         if not resp.ok:

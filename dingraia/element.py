@@ -159,6 +159,14 @@ class Context:
         self.traceId = None
 
 
+class CardResponse:
+    card_data: Optional[dict] = None
+    outTrackId: Optional[str] = None
+
+    def __init__(self):
+        pass
+
+
 class EasyDict(dict):
     """字典类，支持属性访问"""
 
