@@ -109,6 +109,7 @@ class Dingtalk:
     """发送消息时的回调，可用于检测发送体"""
     http_routes: List[web.RouteDef] = []
     """HTTP路由"""
+    _running_mode: List[str] = []
 
     def __init__(self, config: Config = None):
         self._clientSession = None or self._clientSession
@@ -319,13 +320,7 @@ class Dingtalk:
                 raise err_reason[errCode](response.text)
             else:
                 delog.success(f"Success!", no=40)
-                if isinstance(target, (Group, Member, OpenConversationId)):
-                    if target.traceId not in self.message_trace_id:
-                        self.message_trace_id[target.traceId] = {"send_messages": 1}
-                    else:
-                        if not self.message_trace_id[target.traceId].get("send_messages"):
-                            self.message_trace_id[target.traceId]["send_messages"] = 0
-                        self.message_trace_id[target.traceId]["send_messages"] += 1
+                self._add_message_times(target=target, no_raise=True)
             return response
 
     def sendMessage(
@@ -468,6 +463,8 @@ class Dingtalk:
             self,
             target: Union[OpenConversationId, Group, Member],
             cardData: dict,
+            *,
+            callbackType: Literal["auto", "Stream", "HTTP"] = "auto",
             outTrackId: str = str(uuid.uuid1()),
     ) -> str:
         """
@@ -475,12 +472,24 @@ class Dingtalk:
         Args:
             target: 发送的目标地址
             cardData: 卡片内容
+            callbackType: 回调类型, 默认auto则自动选择 (Stream优先)
             outTrackId: 自定义追溯ID, 默认使用UUID1生成
 
         Returns:
             str: outTrackId
 
         """
+        if callbackType == "auto":
+            if "Stream" in self._running_mode:
+                callbackType = "Stream"
+            else:
+                callbackType = "HTTP"
+        if callbackType not in self.running_mode:
+            raise ValueError(
+                f"Callback type {callbackType} is not support for current running mode {self.running_mode}")
+        cardData["callbackType"] = callbackType
+        if callbackType == "HTTP":
+            cardData["callbackRouteKey"] = outTrackId
         resp = await self.api_request.post('/v1.0/card/instances', json=cardData)
         if not resp.ok:
             raise DingtalkAPIError(f"Error while create the card.Code={resp.status} text={await resp.text()}")
@@ -492,15 +501,13 @@ class Dingtalk:
             body['openSpaceId'] = f"dtv1.card//IM_ROBOT.{target.staffid}"
             cardData["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT"}
         else:
-            if isinstance(target, Group):
-                target = target.openConversationId
-            openConversationId = str(target)
-            body['openSpaceId'] = f"dtv1.card//IM_GROUP.{openConversationId}"
+            body['openSpaceId'] = f"dtv1.card//IM_GROUP.{self._openConversationId2str(target)}"
             body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}
         resp = await self.api_request.post('/v1.0/card/instances/deliver', json=body)
         if not resp.ok:
             errCode = (await resp.json()).get("errcode")
             raise err_reason[errCode](f"Error while deliver the card.Code={resp.status} text={await resp.text()}")
+        self._add_message_times(target=target)
         return outTrackId
 
     async def send_markdown_card(
@@ -544,8 +551,7 @@ class Dingtalk:
                 }
             },
             "imGroupOpenSpaceModel": {"supportForward": supportForward},
-            "imRobotOpenSpaceModel": {"supportForward": supportForward},
-            "callbackType"         : "STREAM"
+            "imRobotOpenSpaceModel": {"supportForward": supportForward}
         }
         return await self.send_card(target=target, cardData=data, outTrackId=outTrackId)
 
@@ -1848,6 +1854,7 @@ class Dingtalk:
         if isinstance(self.config, Config):
             self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
             if self.config.stream:
+                self._running_mode.append("Stream")
                 logger.info(
                     f"Loading {len(self.config.stream)} stream task{'s' if len(self.config.stream) > 1 else ''}")
                 for stream in self.config.stream:
@@ -1918,7 +1925,6 @@ class Dingtalk:
                     self.config.webRequestHandlers if isinstance(self.config, Config) else []
                 )
                 app = web.Application(middlewares=request_handler)
-                app = web.Application()
                 app.add_routes([
                                    web.post('/', receive_data),
                                    web.get('/', default_page)
@@ -1927,6 +1933,7 @@ class Dingtalk:
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
                 await site.start()
+                self._running_mode.append("HTTP")
                 logger.info(f"Started at 0.0.0.0:{port}")
 
             self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
@@ -2335,6 +2342,26 @@ class Dingtalk:
                 return False
             return True
         return False
+
+    def _add_message_times(self, target: Union[TraceId, OpenConversationId, Group, Member], no_raise: bool = False):
+        if isinstance(target, (Group, Member, OpenConversationId, TraceId)):
+            if isinstance(target, (Group, Member, OpenConversationId)):
+                traceId = target.traceId
+            else:
+                traceId = target
+            if traceId not in self.message_trace_id:
+                self.message_trace_id[traceId] = {"send_messages": 1}
+            else:
+                if not self.message_trace_id[traceId].get("send_messages"):
+                    self.message_trace_id[traceId]["send_messages"] = 0
+                self.message_trace_id[traceId]["send_messages"] += 1
+        else:
+            if not no_raise:
+                raise ValueError(f"Invalid target type: {type(target)}")
+
+    @property
+    def running_mode(self):
+        return ', '.join(self._running_mode)
 
     @staticmethod
     def _openConversationId2str(openConversationId: Union[OpenConversationId, Group, str]) -> str:
