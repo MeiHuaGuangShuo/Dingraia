@@ -49,13 +49,20 @@ class CustomStreamConnect:
                 Callable[
                     [Union[str, AppKey], Union[str, AppSecret]],
                     Union[
-                        Dict[Union[str, EndPoint], Union[str, Ticket]],
-                        Coroutine[Any, Any, Dict[Union[str, EndPoint], Union[str, Ticket]]]
+                        Dict[Union[Union[str, EndPoint, Ticket]], str],
+                        Coroutine[Any, Any, Dict[Union[Union[str, EndPoint, Ticket]], str]]
                     ]
                 ]
             ] = None,
             ExtraHeaders: dict = None
     ):
+        """自定义Stream连接配置
+
+        Args:
+            StreamUrl: Websocket连接地址，必须以ws或wss开头
+            SignHandler: 验证签名方法。如果为字符串则向网址POST数据，验证方法和钉钉官网一致；如果为函数则传入AppKey和AppSecret，必须返回包含 `endpoint` 和 `ticket` 的字典
+            ExtraHeaders: 进行Stream连接时附加的HTTP头部
+        """
         if ExtraHeaders is None:
             self.ExtraHeaders = {}
         self.StreamUrl = StreamUrl
