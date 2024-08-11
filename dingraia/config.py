@@ -47,10 +47,10 @@ class CustomStreamConnect:
             SignHandler: Union[
                 str,
                 Callable[
-                    [Union[AppKey, str], Union[AppSecret, str]],
+                    [Union[str, AppKey], Union[str, AppSecret]],
                     Union[
-                        Dict[Union[EndPoint, str], Union[Ticket, str]],
-                        Coroutine[Any, Any, Dict[Union[EndPoint, str], Union[Ticket, str]]]
+                        Dict[Union[str, EndPoint], Union[str, Ticket]],
+                        Coroutine[Any, Any, Dict[Union[str, EndPoint], Union[str, Ticket]]]
                     ]
                 ]
             ] = None,
