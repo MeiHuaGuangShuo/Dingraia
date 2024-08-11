@@ -17,12 +17,13 @@ import urllib.parse
 from urllib.parse import urlencode, urljoin, urlparse
 import uuid
 from functools import reduce
-from typing import Callable, Dict, Coroutine, Literal
+from typing import Callable, Dict, Coroutine
 
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
 
+from .card import *
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .config import Config, Stream, CustomStreamConnect
@@ -462,8 +463,10 @@ class Dingtalk:
     async def send_card(
             self,
             target: Union[OpenConversationId, Group, Member],
+            cardTemplateId: str,
             cardData: dict,
             *,
+            supportForward: bool = False,
             callbackType: Literal["auto", "Stream", "HTTP"] = "auto",
             outTrackId: str = str(uuid.uuid1()),
     ) -> CardResponse:
@@ -471,7 +474,9 @@ class Dingtalk:
         
         Args:
             target: 发送的目标地址
+            cardTemplateId:
             cardData: 卡片内容
+            supportForward:
             callbackType: 回调类型, 默认auto则自动选择 (Stream优先)
             outTrackId: 自定义追溯ID, 默认使用UUID1生成
 
@@ -487,6 +492,15 @@ class Dingtalk:
         if callbackType not in self.running_mode:
             raise ValueError(
                 f"Callback type {callbackType} is not support for current running mode {self.running_mode}")
+        cardData = {
+            "cardTemplateId"       : cardTemplateId,
+            "outTrackId"           : outTrackId,
+            "cardData"             : {
+                "cardParamMap": cardData
+            },
+            "imGroupOpenSpaceModel": {"supportForward": supportForward},
+            "imRobotOpenSpaceModel": {"supportForward": supportForward}
+        }
         cardData["callbackType"] = callbackType
         if callbackType == "HTTP":
             cardData["callbackRouteKey"] = outTrackId
@@ -510,7 +524,7 @@ class Dingtalk:
         self._add_message_times(target=target)
         resp = CardResponse()
         resp.outTrackId = outTrackId
-        resp.card_data = cardData["cardData"]
+        resp.card_data = cardData["cardData"]["cardParamMap"]
         return resp
 
     async def send_markdown_card(
@@ -520,7 +534,7 @@ class Dingtalk:
             logo: Union[File, str] = "@lALPDfJ6V_FPDmvNAfTNAfQ",
             outTrackId: str = str(uuid.uuid1()),
             supportForward: bool = False,
-    ):
+    ) -> CardResponse:
         """
         
         Args:
@@ -544,35 +558,73 @@ class Dingtalk:
         else:
             raise ValueError(f"logo {logo} is not a valid value!")
         data = {
-            "cardTemplateId"       : "589420e2-c1e2-46ef-a5ed-b8728e654da9.schema",
-            "outTrackId"           : outTrackId,
-            "cardData"             : {
-                "cardParamMap": {
-                    "markdown": markdown.text,
-                    "title"   : markdown.title,
-                    "logo"    : logo
-                }
-            },
-            "imGroupOpenSpaceModel": {"supportForward": supportForward},
-            "imRobotOpenSpaceModel": {"supportForward": supportForward}
+            "markdown": markdown.text,
+            "title"   : markdown.title,
+            "logo"    : logo
         }
-        return await self.send_card(target=target, cardData=data, outTrackId=outTrackId)
+        return await self.send_card(
+            target=target,
+            cardTemplateId="589420e2-c1e2-46ef-a5ed-b8728e654da9.schema",
+            cardData=data,
+            outTrackId=outTrackId,
+            supportForward=supportForward
+        )
 
-    async def update_card(self, outTrackId, cardData):
-        if isinstance(cardData, Markdown):
-            cardData = {
-                "cardParamMap": {
-                    "markdown": cardData.text,
-                    "title"   : cardData.title
-                }}
+    async def update_card(self, outTrackId, cardParamData):
+        if isinstance(outTrackId, CardResponse):
+            outTrackId = outTrackId.outTrackId
+        if isinstance(cardParamData, Markdown):
+            cardParamData = {
+                "markdown": cardParamData.text,
+                "title"   : cardParamData.title
+            }
         body = {
             "outTrackId": outTrackId,
-            "cardData": cardData
+            "cardData": {
+                "cardParamMap": cardParamData
+            }
         }
         resp = await self.api_request.put('/v1.0/card/instances', json=body)
         if not resp.ok:
             raise DingtalkAPIError(f"Error while update the card.Code={resp.status} text={await resp.text()}")
         return await resp.json()
+
+    async def send_ai_card(
+            self,
+            target: Union[OpenConversationId, Group, Member],
+            cardTemplateId: str,
+            card: AICard,
+            update_limit: int = 0,
+            *,
+            key: str = "content",
+            outTrackId: str = str(uuid.uuid1())
+    ):
+        await self.send_card(target=target, cardTemplateId=cardTemplateId, cardData=card.data, outTrackId=outTrackId)
+        body = {
+            "key"       : key,
+            "isFull"    : True,
+            "isFinalize": False,
+            "isError"   : False,
+            "outTrackId": outTrackId,
+        }
+        try:
+            for content in card.streaming_string(length_limit=update_limit):
+                body["guid"] = str(uuid.uuid1())
+                body["content"] = content
+                res = await self.api_request.jput("/v1.0/card/streaming", json=body)
+        except Exception as err:
+            logger.exception(err)
+            body["guid"] = str(uuid.uuid1())
+            body["content"] = "出错了，请稍后再试"
+            body["isError"] = True
+            await self.api_request.put("/v1.0/card/streaming", json=body)
+        body["guid"] = str(uuid.uuid1())
+        body["isFinalize"] = True
+        await self.api_request.put("/v1.0/card/streaming", json=body)
+        resp = CardResponse()
+        resp.outTrackId = outTrackId
+        resp.card_data = card.data
+        return resp
 
     async def create_group(
             self,
