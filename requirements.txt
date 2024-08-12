@@ -5,3 +5,4 @@ prompt_toolkit
 rich
 loguru
 mutagen
+pycryptodome
