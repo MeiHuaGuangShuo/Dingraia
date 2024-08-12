@@ -597,8 +597,10 @@ class Dingtalk:
             update_limit: int = 0,
             *,
             key: str = "content",
-            outTrackId: str = str(uuid.uuid1())
+            outTrackId: str = None
     ):
+        if not outTrackId:
+            outTrackId = str(uuid.uuid1())
         await self.send_card(target=target, cardTemplateId=cardTemplateId, cardData=card.data, outTrackId=outTrackId)
         body = {
             "key"       : key,
