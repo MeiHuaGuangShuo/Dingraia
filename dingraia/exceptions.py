@@ -7,8 +7,35 @@ class DingtalkAPIError(Exception):
     code = -1
     solution: str = "Unknown"
 
-    def __init__(self, *msg):
-        msg = ''.join([str(x) for x in msg])
+    def __init__(self, msg):
+        if isinstance(msg, dict):
+            try:
+                data = msg
+                code = data.get("errcode")
+                errmsg = data.get("errmsg")
+                request_id = data.get("request_id")
+                if code and errmsg:
+                    data.pop("errcode")
+                    data.pop("errmsg")
+                    if request_id:
+                        data.pop("request_id")
+                    msg = f"{errmsg}[{code}]"
+                    if data:
+                        msg += f" Response: {data}"
+                else:
+                    msg = f"An Error happened while requesting Dingtalk API. Response: {data}"
+                if self.solution == "Unknown":
+                    if request_id:
+                        self.solution = (f"使用请求ID '{request_id}' 前往 "
+                                         f"https://open-dev.dingtalk.com/fe/api-tools"
+                                         f"?hash=%23%2Ftroubleshoot#/troubleshoot 查看解决方案")
+                    elif code:
+                        self.solution = (f"使用错误码 '{code}' 前往 "
+                                         f"https://open-dev.dingtalk.com/fe/api-tools"
+                                         f"?hash=%23%2Ftroubleshoot#/troubleshoot 查看解决方案")
+            except:
+                pass
+        msg = str(msg)
         if msg.strip().endswith('.') or msg.strip().endswith('。'):
             msg += f" Solution: {self.solution}"
         else:
