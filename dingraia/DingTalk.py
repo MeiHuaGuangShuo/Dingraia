@@ -9,6 +9,7 @@ import random
 import signal
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
+from contextlib import contextmanager
 
 import mutagen
 import socket
@@ -316,9 +317,9 @@ class Dingtalk:
                 try:
                     res = response.json()
                     errCode = res.get('errcode', res.get('code', -1))
+                    raise err_reason[errCode](res)
                 except:
-                    errCode = -1
-                raise err_reason[errCode](response.text)
+                    raise err_reason[-1](response.text)
             else:
                 delog.success(f"Success!", no=40)
                 self._add_message_times(target=target, no_raise=True)
@@ -723,8 +724,8 @@ class Dingtalk:
         res['success'] = True
         return res
 
-    async def get_depts(self, deptId: str = "1", access_token: str = None):
-        """获取部门ID
+    async def get_depts(self, deptId: int = 1, access_token: str = None):
+        """获取指定部门下的所有部门
         
         Args:
             deptId: 部门ID. 根部门为 1
@@ -733,13 +734,33 @@ class Dingtalk:
         Returns:
 
         """
-        access_token = access_token or self.access_token
         if access_token:
             url = f"https://oapi.dingtalk.com/topapi/v2/department/listsub?access_token={access_token}"
-            res = await url_res(url, 'POST', json={'dept_id': deptId}, res='json')
+            res = await url_res(url, 'POST', json={'dept_id': str(deptId)}, res='json')
         else:
             res = await self.oapi_request.jpost('/topapi/v2/department/listsub', json={'dept_id': deptId})
-        return res
+        if res.get('errcode'):
+            raise err_reason[res['errcode']](res)
+        return res['result']
+
+    async def get_dept_users(self, deptId: str = "1", access_token: str = None):
+        """获取部门用户
+
+        Args:
+            deptId: 部门ID. 根部门为 1
+            access_token: 企业的AccessToken
+
+        Returns:
+
+        """
+        if access_token:
+            url = f"https://oapi.dingtalk.com/topapi/user/listid?access_token={access_token}"
+            res = await url_res(url, 'POST', json={'dept_id': deptId}, res='json')
+        else:
+            res = await self.oapi_request.jpost('/topapi/user/listid', json={'dept_id': deptId})
+        if res.get('errcode'):
+            raise err_reason[res['errcode']](res)
+        return res['result'].get('userid_list', [])
 
     async def get_user(self, userStaffId: Union[Member, str], language: str = "zh_CN", access_token: str = None):
         """获取用户详细信息
@@ -1445,8 +1466,7 @@ class Dingtalk:
                                         data=data) as resp:
                     res_json = await resp.json()
                     if res_json.get("errcode"):
-                        raise err_reason[res_json.get("errcode")](
-                            f"Error while uploading the file.Server response: {res_json}")
+                        raise err_reason[res_json.get("errcode")](res_json)
                     cache.add_openapi_count()
             self.media_id_cache[file_hash] = res_json['media_id']
             res.mediaId = res_json['media_id']
@@ -1503,13 +1523,24 @@ class Dingtalk:
     def access_token(self) -> str:
         """当前企业的AccessToken, 会在调用时自动更新"""
         if self._access_token:
-            return self._access_token.token
+            # return self._access_token.token
+            return self._access_token.safe()
         else:
             if self._access_token is None or not self._access_token.appKey or not self._access_token.appSecret:
                 self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
             else:
                 self._access_token.refresh()
             return self._access_token.token
+
+    @contextmanager
+    def with_access_token(self, access_token: AccessToken):
+        logger.info(self.access_token)
+        raw_access_token = copy.deepcopy(self._access_token)
+        self._access_token = access_token
+        logger.info(self.access_token)
+        yield
+        self._access_token = raw_access_token
+        logger.info(self.access_token)
 
     @property
     def clientSession(self) -> ClientSession:
@@ -1716,9 +1747,13 @@ class Dingtalk:
 
     class _api_request:
 
-        def __init__(self, clientSession: ClientSession, access_token: Union[AccessToken, str]):
+        def __init__(self, clientSession: ClientSession, app: "Dingtalk"):
             self.clientSession = clientSession
-            self.access_token = access_token
+            self.app = app
+
+        @property
+        def access_token(self):
+            return self.app.access_token
 
         async def get(self, urlPath, *, headers=None, **kwargs) -> ClientResponse:
             headers = self._header_resolve(headers)
@@ -1775,7 +1810,7 @@ class Dingtalk:
             if headers is None:
                 headers = {}
             if "x-acs-dingtalk-access-token" not in headers:
-                headers["x-acs-dingtalk-access-token"] = self.access_token.safe()
+                headers["x-acs-dingtalk-access-token"] = self.access_token
             return headers
 
         @staticmethod
@@ -1803,9 +1838,13 @@ class Dingtalk:
 
     class _oapi_request:
 
-        def __init__(self, clientSession: ClientSession, access_token: Union[AccessToken, str]):
+        def __init__(self, clientSession: ClientSession, app: "Dingtalk"):
             self.clientSession = clientSession
-            self.access_token = access_token
+            self.app = app
+
+        @property
+        def access_token(self):
+            return self.app.access_token
 
         async def get(self, urlPath: str, **kwargs) -> ClientResponse:
             await self.before_request(urlPath=urlPath, kwargs=kwargs)
@@ -1852,9 +1891,9 @@ class Dingtalk:
                 urlPath = '/' + urlPath
             url = ("https://oapi.dingtalk.com" + urlPath) if "https" not in urlPath else urlPath
             if '?' not in url:
-                url += f"?access_token={self.access_token.safe()}"
+                url += f"?access_token={self.access_token}"
             elif '?' in url and 'access_token' not in url:
-                url += f"&access_token={self.access_token.safe()}"
+                url += f"&access_token={self.access_token}"
             return url
 
         @staticmethod
@@ -1915,8 +1954,8 @@ class Dingtalk:
                     f"Loading {len(self.config.stream)} stream task{'s' if len(self.config.stream) > 1 else ''}")
                 for stream in self.config.stream:
                     self._create_stream(stream)
-        self.api_request = self._api_request(self.clientSession, self._access_token)
-        self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
+        self.api_request = self._api_request(self.clientSession, self)
+        self.oapi_request = self._oapi_request(self.clientSession, self)
         load_modules()
         await channel.radio(LoadComplete, self, async_await=True)
         logger.info("Load complete.")
@@ -2010,8 +2049,8 @@ class Dingtalk:
     async def _init_console(self):
         self._clientSession = ClientSession()
         self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
-        self.api_request = self._api_request(self.clientSession, self._access_token)
-        self.oapi_request = self._oapi_request(self.clientSession, self._access_token)
+        self.api_request = self._api_request(self.clientSession, self)
+        self.oapi_request = self._oapi_request(self.clientSession, self)
 
     def init_console(self):
         self.run_coroutine(self._init_console())
