@@ -5,6 +5,15 @@
 
 class DingtalkAPIError(Exception):
     code = -1
+    solution: str = "Unknown"
+
+    def __init__(self, *msg):
+        msg = ''.join([str(x) for x in msg])
+        if msg.strip().endswith('.') or msg.strip().endswith('。'):
+            msg += f" Solution: {self.solution}"
+        else:
+            msg += f". Solution: {self.solution}"
+        super().__init__(msg)
 
 
 class ConfigError(Exception):
@@ -55,6 +64,11 @@ class InvalidUserIdError(DingtalkAPIError):
     code = 33012
 
 
+class DepartmentNotExistError(DingtalkAPIError):
+    solution = "可通过获取部门列表接口 (Dingtalk.get_depts) 获取"
+    code = 60003
+
+
 class ApiPermissionDeniedError(DingtalkAPIError):
     code = 60011
 
@@ -79,6 +93,7 @@ err_code_map = {
     40035                                               : InvalidParameterError,
     "param.invalid"                                     : InvalidParameterError,
     33012                                               : InvalidUserIdError,
+    60003: DepartmentNotExistError,
     60011                                               : ApiPermissionDeniedError,
     "Forbidden.AccessDenied.AccessTokenPermissionDenied": ApiPermissionDeniedError,
     60020                                               : IPNotInWhitelistError,
