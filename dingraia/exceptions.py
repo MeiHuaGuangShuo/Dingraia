@@ -5,7 +5,7 @@
 
 class DingtalkAPIError(Exception):
     code = -1
-    solution: str = "Unknown"
+    solution: str = ""
 
     def __init__(self, msg):
         if isinstance(msg, dict):
@@ -35,11 +35,12 @@ class DingtalkAPIError(Exception):
                                          f"?hash=%23%2Ftroubleshoot#/troubleshoot 查看解决方案")
             except:
                 pass
-        msg = str(msg)
-        if msg.strip().endswith('.') or msg.strip().endswith('。'):
-            msg += f" Solution: {self.solution}"
-        else:
-            msg += f". Solution: {self.solution}"
+        if self.solution:
+            msg = str(msg)
+            if msg.strip().endswith('.') or msg.strip().endswith('。'):
+                msg += f" Solution: {self.solution}"
+            else:
+                msg += f". Solution: {self.solution}"
         super().__init__(msg)
 
 
