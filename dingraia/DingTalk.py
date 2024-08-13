@@ -1534,6 +1534,15 @@ class Dingtalk:
 
     @contextmanager
     def with_access_token(self, access_token: AccessToken):
+        """临时使用AccessToken
+
+        Args:
+            access_token: 临时使用的AccessToken对象
+
+        Returns:
+            None
+
+        """
         logger.info(self.access_token)
         raw_access_token = copy.deepcopy(self._access_token)
         self._access_token = access_token
