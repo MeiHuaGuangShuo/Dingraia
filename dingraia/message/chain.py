@@ -1,4 +1,4 @@
-﻿from typing import Any, TypeVar, List
+﻿from typing import Any, TypeVar, List, Type
 
 from .element import At
 
@@ -13,11 +13,11 @@ class MessageChain:
         self.display = ''.join([str(x) for x in self.mes])
         if at is not None:
             self.mes += [At(at_id) for at_id in at]
-    
-    def include(self, __obj: _T) -> List[_T]:
+
+    def include(self, __obj: Type[_T]) -> List[_T]:
         return self.get(__obj)  # __class__([i for i in self.mes if isinstance(i, __obj)])
-    
-    def get_first(self, __obj: _T) -> _T:
+
+    def get_first(self, __obj: Type[_T]) -> _T:
         return self.get(__obj)[0]
     
     def get(self, element_class: type, count: int = -1) -> list:
