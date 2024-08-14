@@ -1905,7 +1905,8 @@ class Dingtalk:
         self._start_topic()
         logger.info("Preparing loading...")
         if isinstance(self.config, Config):
-            self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
+            if self.config.bot:
+                self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
             if self.config.stream:
                 self._running_mode.append("Stream")
                 logger.info(
