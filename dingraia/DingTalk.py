@@ -116,6 +116,7 @@ class Dingtalk:
     def __init__(self, config: Config = None):
         self._clientSession = None or self._clientSession
         self.context = Context()
+        self.prepare = self._prepare(self)
         if config is not None:
             if isinstance(config, Config):
                 self.config = config
@@ -123,6 +124,8 @@ class Dingtalk:
                 self.stream_connect = config.customStreamConnect
             else:
                 raise ValueError(f"Config '{repr(config)}' is not a class:Config or None")
+        else:
+            self.config = Config()
 
     async def send_message(
             self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
@@ -203,7 +206,7 @@ class Dingtalk:
             headers['x-acs-dingtalk-access-token'] = self.access_token
         if isinstance(msg, MessageChain):
             if msg.include(At):
-                ats: List[At] = msg.include(At)
+                ats = msg.include(At)
                 at = reduce(lambda x, y: x + y, ats)
                 send_data["at"] = at.data
 
@@ -415,52 +418,6 @@ class Dingtalk:
         else:
             return self.loop.create_task(_run(inThreadTime))
 
-    async def _send_card(
-            self,
-            cardTemplateId,
-            outTrackId,
-            cardData,
-            openSpaceId,
-            supportForward: bool = False,
-            notificationOff: bool = False,
-            alertContent: str = "你收到了一个卡片消息",
-            lastContent: str = "卡片",
-    ):
-        exam = {
-            "cardTemplateId"       : "b4fdsu2119f-9945-4e13-9989-747da19e3bc7",
-            "outTrackId"           : "example_out_track_id",
-            "callbackRouteKey"     : "example_route_key",
-            "cardData"             : {},
-            "privateData"          : {},
-            "imGroupOpenSpaceModel": {
-                "supportForward" : supportForward,
-                "lastMessageI18n": {
-                    "key": lastContent
-                },
-                "notification"   : {
-                    "alertContent"   : alertContent,
-                    "notificationOff": notificationOff
-                }
-            },
-            "imRobotOpenSpaceModel": {
-                "supportForward" : supportForward,
-                "lastMessageI18n": {
-                    "key": lastContent
-                },
-                "notification"   : {
-                    "alertContent"   : alertContent,
-                    "notificationOff": notificationOff
-                }
-            },
-            "openSpaceId"          : "dtv1.card//im_group.cidp4Gh*******VCQ==;im_robot.manager****67",
-            "docOpenDeliverModel"  : {
-                "userId": "example_user_id"
-            },
-            "userIdType"           : 1,
-            "callbackType"         : "STREAM"
-        }
-        raise ValueError("未完成")
-
     async def send_card(
             self,
             target: Union[OpenConversationId, Group, Member],
@@ -493,16 +450,10 @@ class Dingtalk:
         if callbackType not in self.running_mode:
             raise ValueError(
                 f"Callback type {callbackType} is not support for current running mode {self.running_mode}")
-        cardData = {
-            "cardTemplateId"       : cardTemplateId,
-            "outTrackId"           : outTrackId,
-            "cardData"             : {
-                "cardParamMap": cardData
-            },
-            "imGroupOpenSpaceModel": {"supportForward": supportForward},
-            "imRobotOpenSpaceModel": {"supportForward": supportForward}
-        }
-        cardData["callbackType"] = callbackType
+        cardData = {"cardTemplateId"       : cardTemplateId, "outTrackId": outTrackId, "cardData": {
+            "cardParamMap": cardData
+        }, "imGroupOpenSpaceModel"         : {"supportForward": supportForward},
+                    "imRobotOpenSpaceModel": {"supportForward": supportForward}, "callbackType": callbackType}
         if callbackType == "HTTP":
             cardData["callbackRouteKey"] = outTrackId
         resp = await self.api_request.post('/v1.0/card/instances', json=cardData)
@@ -768,6 +719,7 @@ class Dingtalk:
         Args:
             userStaffId: 用户的StaffID
             language: 语言. 默认zh-CN
+            access_token: 企业的AccessToken
 
         Returns:
 
@@ -1543,13 +1495,10 @@ class Dingtalk:
             None
 
         """
-        logger.info(self.access_token)
         raw_access_token = copy.deepcopy(self._access_token)
         self._access_token = access_token
-        logger.info(self.access_token)
         yield
         self._access_token = raw_access_token
-        logger.info(self.access_token)
 
     @property
     def clientSession(self) -> ClientSession:
@@ -2055,14 +2004,28 @@ class Dingtalk:
         self.create_task(keep_running(), show_info=False)
         await asyncio.gather(*self.async_tasks)
 
-    async def _init_console(self):
-        self._clientSession = ClientSession()
-        self._access_token = get_token(self.config.bot.appKey, self.config.bot.appSecret)
-        self.api_request = self._api_request(self.clientSession, self)
-        self.oapi_request = self._oapi_request(self.clientSession, self)
+    class _prepare:
 
-    def init_console(self):
-        self.run_coroutine(self._init_console())
+        def __init__(self, app: "Dingtalk"):
+            self.app = app
+
+        def set(self):
+            self.app._clientSession = ClientSession()
+            if self.app.config:
+                if self.app.config.bot:
+                    self.app._access_token = get_token(self.app.config.bot.appKey, self.app.config.bot.appSecret)
+            self.app.api_request = self.app._api_request(self.app.clientSession, self.app)
+            self.app.oapi_request = self.app._oapi_request(self.app.clientSession, self.app)
+
+        async def __aenter__(self):
+            self.set()
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            await self.app.stop()
+
+        def __call__(self):
+            """如果不使用start，则必须手动运行此函数以保证可以完成请求。在程序退出的时候，必须使用stop函数"""
+            self.set()
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -2127,7 +2090,7 @@ class Dingtalk:
             try:
                 s.connect(('8.8.8.8', 80))
                 ip = s.getsockname()[0]
-            except:
+            except socket.error:
                 ip = '127.0.0.1'
             finally:
                 s.close()
@@ -2327,14 +2290,14 @@ class Dingtalk:
 
         """
 
-        def task_done_callback(task: asyncio.Task):
-            exception = task.exception()
+        def task_done_callback(_task: asyncio.Task):
+            exception = _task.exception()
             if exception:
                 logger.exception(f"Task [{name}] was ended with an error: {exception.__class__.__name__}", exception)
             else:
                 logger.info(f"Task [{name}] was ended")
-            if task in self.async_tasks:
-                self.async_tasks.remove(task)
+            if _task in self.async_tasks:
+                self.async_tasks.remove(_task)
 
         task = self.loop.create_task(coroutine)
         task.set_name(name := (f"#{next(_no)} " + name))
@@ -2346,21 +2309,21 @@ class Dingtalk:
             logger.info(f"Create async task [{name}]")
         return task, name
 
-    def stop_for_signal(self, signum, _):
+    def stop_for_signal(self, _, __):
         global exit_signal
         print("\r", end="")
         if exit_signal:
             logger.warning(f"User forced to quit")
             sys.exit(1)
-        logger.warning(f"Received Signal {signum}")
+        logger.warning(f"Ctrl-C triggered.")
         exit_signal = True
-        # asyncio.run_coroutine_threadsafe(self.stop(), asyncio.new_event_loop())
-        self.loop.create_task(self.stop())
+        self._loop.create_task(self.stop())
 
     async def stop(self):
-        self.log.info("Stopping task loop")
-        if self.clientSession:
-            await self.clientSession.close()
+        self.log.info("Stopping Dingraia...")
+        if isinstance(self._clientSession, ClientSession):
+            if not self._clientSession.closed:
+                await self._clientSession.close()
         tasks = self.async_tasks
         names = ', '.join([x.get_name() for x in self.async_tasks])
         if tasks:
@@ -2373,6 +2336,7 @@ class Dingtalk:
                         logger.error(f"Task [{name}] canceled failed!")
                     else:
                         logger.success(f"Task [{name}] canceled successfully")
+        logger.success("Async tasks stopped successfully")
 
     async def coroutine_watcher(self, function, *args, **kwargs):
         stop = False

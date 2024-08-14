@@ -29,6 +29,8 @@
     - OutGoing..?
 - 使用方式
     - 脚本运行
+        - 机器人阻塞模式
+        - 单 API 模式 (需要额外配置)
     - 控制台模式
 - 群聊功能
     - 发送消息
@@ -161,6 +163,35 @@ pip install --upgrade dingraia
 
 ```shell
 python -m dingraia
+```
+
+## 单 API 模式
+
+考虑到有时候需要特殊操作，所以开发了可以不阻塞仅使用 API 的方式
+
+以下为示例代码
+
+```python
+from dingraia.lazy import *
+
+app = Dingtalk()
+
+
+async def main1():
+    async with app.prepare:
+        await app.get_user(...)
+
+
+# 两种方法都行，app.stop 是要关闭ClientSession
+
+async def main2():
+    await app.prepare()
+    await app.get_user(...)
+    await app.stop()
+
+
+asyncio.run(main1())
+asyncio.run(main2())
 ```
 
 ## Debug 模式

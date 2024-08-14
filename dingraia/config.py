@@ -1,4 +1,4 @@
-from typing import Awaitable, Dict, List, Union, Callable, Coroutine, Any
+from typing import Awaitable, Dict, List, Union, Callable, Coroutine, Any, Optional
 from aiohttp.web import Request
 from aiohttp.web_response import StreamResponse
 from .element import AppKey, AppSecret, EndPoint, Ticket
@@ -85,6 +85,7 @@ class Config:
             autoBotConfig: bool = True,
             useDatabase: bool = True,
             webRequestHandlers: List[Middleware] = None,
+            raise_for_api_error: bool = True,
     ):
         """初始化Config
         
@@ -97,13 +98,17 @@ class Config:
             stream:
             autoBotConfig: 是否自动替换Bot的值
         """
+        self.raise_for_api_error = raise_for_api_error
         self.useDatabase = useDatabase
         self.event_callback = event_callback
         self.customStreamConnect = customStreamConnect
-        self.bot: Union[Bot, None] = bot
-        self.stream: Union[List[Stream], None] = stream
+        self.bot: Optional[Bot] = bot
+        self.stream: Optional[List[Stream]] = stream
         self.webRequestHandlers = webRequestHandlers or []
         if not isinstance(self.stream, list):
-            self.stream = [self.stream]
+            if self.stream is not None:
+                self.stream = [self.stream]
+            else:
+                self.stream = []
         if len(self.stream) == 1 and autoBotConfig:
             self.bot = Bot(stream[0].AppKey, stream[0].AppSecret, stream[0].AppKey)
