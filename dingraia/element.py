@@ -3,6 +3,7 @@ import json
 import urllib.request
 from collections import OrderedDict
 from .exceptions import DingtalkAPIError
+from .cache import cache
 from typing import Optional
 
 

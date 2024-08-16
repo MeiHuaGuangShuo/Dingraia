@@ -44,7 +44,7 @@ def loop_runner(run_cell_async):
 pool = ThreadPoolExecutor()
 app._loop = loop
 logger.info("Init console...")
-asyncio.run_coroutine_threadsafe(app.prepare(), loop)
+app.prepare()
 pool.submit(start_loop)
 # shell = InteractiveShellEmbed(loop=loop)
 # shell.active_eventloop = loop

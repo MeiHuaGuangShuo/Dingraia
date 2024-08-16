@@ -1,3 +1,10 @@
+from pathlib import Path
+from uuid import uuid1
+from io import BytesIO, BufferedReader
+from contextlib import contextmanager
+from typing import Union
+
+
 def ColoredFormatter(message: str):
     color_map = {
         "red"    : "\033[1;31m",
@@ -31,11 +38,23 @@ class NoUseClass:
     def __add__(self, other):
         return self
 
-    def __divmod__(self, other):
-        return self
-
     def __sub__(self, other):
         return self
 
     def __mod__(self, other):
         return self
+
+
+@contextmanager
+def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str) -> str:
+    fileName = Path.home() / ".dingraia" / f"temp_{uuid1()}.{file_extension}"
+    fileName.parent.mkdir(parents=True, exist_ok=True)
+    with open(fileName, "wb") as f:
+        if isinstance(content, BytesIO):
+            f.write(content.getvalue())
+        elif isinstance(content, BufferedReader):
+            f.write(content.read())
+        else:
+            raise TypeError(f"content must be BytesIO or BufferedReader, but got {type(content)}")
+    yield str(fileName.resolve())
+    fileName.unlink()

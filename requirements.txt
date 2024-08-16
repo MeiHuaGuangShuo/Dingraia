@@ -6,3 +6,4 @@ rich
 loguru
 mutagen
 pycryptodome
+moviepy

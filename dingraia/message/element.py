@@ -156,24 +156,30 @@ class Audio(File):
 
 
 class Video(File):
-    
-    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None, fileName: str = None):
-        super().__init__(file, fileName)
+
+    def __init__(
+            self, file: Union[Path, BinaryIO, bytes, str] = None, coverPicture: Union[Image, str] = None,
+            fileName: str = None
+            ):
+        super().__init__(file=file, fileName=fileName)
         self.fileType = 'video'
-        self.videoMediaId = None
         self.videoType = 'mp4'
         self.duration = None
-        self.picMediaId = None
+        self.picMediaId = coverPicture
+        self.height = 600
+        self.width = 800
     
     @property
     def template(self):
         return {
             'msgKey'  : "sampleVideo",
             'msgParam': json.dumps({
-                'duration'    : self.duration,
+                'duration': str(self.duration),
                 'videoMediaId': self.mediaId,
                 'videoType'   : self.videoType,
-                'picMediaId'  : self.picMediaId
+                'picMediaId': self.picMediaId,
+                'height': self.height,
+                'width': self.width
             })
         }
     

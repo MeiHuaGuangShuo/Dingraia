@@ -12,18 +12,20 @@ from io import BytesIO
 from contextlib import contextmanager
 
 import mutagen
+from moviepy.editor import VideoFileClip
 import socket
 import sys
 import urllib.parse
 from urllib.parse import urlencode, urljoin, urlparse
 import uuid
 from functools import reduce
-from typing import Callable, Dict, Coroutine
+from typing import Callable, Dict, Coroutine, Any, TypeVar
 
 import aiohttp
 import websockets
 from aiohttp import ClientSession, ClientResponse, web
 
+from .tools import write_temp_file
 from .card import *
 from .VERSION import VERSION
 from .callback_handler import callback_handler
@@ -58,6 +60,7 @@ DINGRAIA_ASCII = r"""
                |___/
 """
 ANNOUNCEMENT = "See https://dingraia.gitbook.io/dingraia for documents"
+_T = TypeVar("_T")
 
 is_debug = os.path.exists("dingraia_debug.mode") or os.getenv("DEBUG") is not None
 
@@ -605,7 +608,7 @@ class Dingtalk:
             "template_id"          : templateId,
             "owner_user_id"        : ownerUserId,
             "uuid"                 : UUID,
-            "icon"                 : self._file2mediaId(icon),
+            "icon": await self._file2mediaId(icon),
             "mention_all_authority": 1,
             "show_history_type"    : 1 if showHistory else 0,
             "validation_type"      : 1 if validation else 0,
@@ -1020,7 +1023,7 @@ class Dingtalk:
         if owner_user_id is not None:
             data['owner_user_id'] = self._staffId2str(owner_user_id)
         if icon is not None:
-            data['icon'] = self._file2mediaId(icon)
+            data['icon'] = await self._file2mediaId(icon)
         if mention_all_authority is not None:
             data['mention_all_authority'] = 1 if mention_all_authority else 0
         if show_history_type is not None:
@@ -1272,7 +1275,7 @@ class Dingtalk:
         """
         access_token = access_token or self.access_token
         url = "https://api.dingtalk.com/v1.0/innerApi/robot/stream/away/template/update"
-        logo = self._file2mediaId(logo)
+        logo = await self._file2mediaId(logo)
         card_data = {
             "config"  : {
                 "autoLayout"   : True,
@@ -1366,6 +1369,7 @@ class Dingtalk:
             f.seek(0, os.SEEK_END)
             size = f.tell()
             f.seek(0)
+            file = res
         else:
             if not file.size:
                 if isinstance(file.file, str):
@@ -1400,32 +1404,45 @@ class Dingtalk:
         f.seek(0)
         file.file = f
         file_hash = file_hash.hexdigest()
+        f.seek(0)
         if is_debug:
             logger.debug(f"File hash: {file_hash}")
         if file_hash not in self.media_id_cache.keys():
+            if isinstance(file, Audio):
+                mediaFile = mutagen.File(file.file)
+                file_length = mediaFile.info.length
+                file.duration = int(file_length * 1000)
+            if isinstance(file, Video):
+                if not file.picMediaId:
+                    raise ValueError("picMediaId must be specified for video file!")
+                file.picMediaId = await self._file2mediaId(file.picMediaId)
+                with write_temp_file(f, 'mp4') as tempFile:
+                    videoFile = VideoFileClip(tempFile)
+                    file_length = videoFile.duration
+                    file.duration = int(file_length)
+                    file.width, file.height = videoFile.size
+                    videoFile.close()
+                f.seek(0)
             data = aiohttp.FormData()
             data.add_field('type', file_type)
             if file.fileName:
                 data.add_field('media', f, filename=file.fileName)
             else:
                 data.add_field('media', f)
-            if isinstance(file, Audio):
-                mfile = mutagen.File(file.file)
-                file_length = mfile.info.length
-                file.duration = int(file_length * 1000)
-            async with aiohttp.ClientSession() as session:
-                async with session.post(f'https://oapi.dingtalk.com/media/upload?access_token={access_token}',
-                                        data=data) as resp:
-                    res_json = await resp.json()
-                    if res_json.get("errcode"):
-                        raise err_reason[res_json.get("errcode")](res_json)
-                    cache.add_openapi_count()
-            self.media_id_cache[file_hash] = res_json['media_id']
+            # async with aiohttp.ClientSession() as session:
+            #     async with session.post(f'https://oapi.dingtalk.com/media/upload?access_token={access_token}',
+            #                             data=data) as resp:
+            #         res_json = await resp.json()
+            #         cache.add_openapi_count()
+            res_json = await self.oapi_request.jpost("/media/upload", data=data)
+            if res_json.get("errcode"):
+                raise err_reason[res_json.get("errcode")](res_json)
             res.mediaId = res_json['media_id']
+            self.media_id_cache[file_hash] = res
         else:
             if is_debug:
                 logger.debug(f"Using cached MediaID for {file_hash} -> {self.media_id_cache[file_hash]}")
-            res.mediaId = self.media_id_cache[file_hash]
+            res = self.media_id_cache[file_hash]
 
         return res
 
@@ -1467,7 +1484,7 @@ class Dingtalk:
         else:
             raise DownloadFileError(f"Failed to get the download URL. Response: {res}")
 
-    def run_coroutine(self, coro):
+    def run_coroutine(self, coro: Coroutine[Any, Any, _T]) -> _T:
         """使用内置的Loop运行异步函数并返回结果"""
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
@@ -2455,14 +2472,18 @@ class Dingtalk:
             staffId = [str(staffId)]
         return staffId
 
-    def _file2mediaId(self, file: Union[File, str]) -> str:
+    async def _file2mediaId(self, file: Union[File, str]) -> str:
         if isinstance(file, File):
             if not file.mediaId:
-                file = self.run_coroutine(self.upload_file(file))
+                file = await self.upload_file(file)
             file = file.mediaId
         elif isinstance(file, str):
-            if not file.startswith("@"):
-                raise ValueError(f"File {file} is not a valid value!")
+            if Path(file).exists():
+                file = await self.upload_file(file)
+                file = file.mediaId
+            else:
+                if not file.startswith("@"):
+                    raise ValueError(f"File {file} is not a valid value!")
         else:
             raise ValueError(f"File type {type(file)} is not a valid type!")
         return file
