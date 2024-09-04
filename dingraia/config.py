@@ -97,6 +97,7 @@ class Config:
             bot:
             stream:
             autoBotConfig: 是否自动替换Bot的值
+            raise_for_api_error: 是否在请求API失败时主动抛出异常
         """
         self.raise_for_api_error = raise_for_api_error
         self.useDatabase = useDatabase
