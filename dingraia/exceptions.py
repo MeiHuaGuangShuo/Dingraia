@@ -11,20 +11,29 @@ class DingtalkAPIError(Exception):
         if isinstance(msg, dict):
             try:
                 data = msg
-                code = data.get("errcode")
-                errmsg = data.get("errmsg")
-                request_id = data.get("request_id")
+                code = data.get("errcode", data.get("code"))
+                errmsg = data.get("errmsg", data.get("message"))
+                request_id = data.get("request_id", data.get("requestid"))
                 if code and errmsg:
-                    data.pop("errcode")
-                    data.pop("errmsg")
+                    if "errcode" in data:
+                        data.pop("errcode")
+                    if "code" in data:
+                        data.pop("code")
                     if request_id:
-                        data.pop("request_id")
+                        if "request_id" in data:
+                            data.pop("request_id")
+                        if "requestid" in data:
+                            data.pop("requestid")
+                    if "message" in data:
+                        data.pop("message")
+                    if "errmsg" in data:
+                        data.pop("errmsg")
                     msg = f"{errmsg}[{code}]"
                     if data:
                         msg += f" Response: {data}"
                 else:
                     msg = f"An Error happened while requesting Dingtalk API. Response: {data}"
-                if self.solution == "Unknown":
+                if not self.solution:
                     if request_id:
                         self.solution = (f"使用请求ID '{request_id}' 前往 "
                                          f"https://open-dev.dingtalk.com/fe/api-tools"
@@ -125,13 +134,14 @@ class APIRateLimitedError(DingtalkAPIError):
 err_code_map = {
     -1                                                  : DingtalkAPIError,
     "resource.not.found"                                : ResourceNotFoundError,
-    40005: InvalidFileTypeError,
+    40005                                    : InvalidFileTypeError,
     40035                                               : InvalidParameterError,
     "param.invalid"                                     : InvalidParameterError,
     33012                                               : InvalidUserIdError,
-    60003: DepartmentNotExistError,
+    60003                                    : DepartmentNotExistError,
     60011                                               : ApiPermissionDeniedError,
     "Forbidden.AccessDenied.AccessTokenPermissionDenied": ApiPermissionDeniedError,
+    "Forbidden.AccessDenied.IpNotInWhiteList": IPNotInWhitelistError,
     60020                                               : IPNotInWhitelistError,
     60121                                               : UserNotFoundError,
     90002                                               : APIRateLimitedError,
