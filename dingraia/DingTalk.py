@@ -205,7 +205,8 @@ class Dingtalk:
                 }
 
             send_data['robotCode'] = self.config.bot.robotCode
-            send_data['openConversationId'] = str(target.openConversationId)
+            if isinstance(target, (Group, Member, OpenConversationId)):
+                send_data['openConversationId'] = str(target.openConversationId)
             headers['x-acs-dingtalk-access-token'] = self.access_token
         if isinstance(msg, MessageChain):
             if msg.include(At):
@@ -426,6 +427,7 @@ class Dingtalk:
             target: Union[OpenConversationId, Group, Member],
             cardTemplateId: str,
             cardData: dict,
+            privateData: Union[dict, PrivateDataBuilder] = None,
             *,
             supportForward: bool = False,
             callbackType: Literal["auto", "Stream", "HTTP"] = "auto",
@@ -437,6 +439,7 @@ class Dingtalk:
             target: 发送的目标地址
             cardTemplateId:
             cardData: 卡片内容
+            privateData: 私有数据
             supportForward:
             callbackType: 回调类型, 默认auto则自动选择 (Stream优先)
             outTrackId: 自定义追溯ID, 默认使用UUID1生成
@@ -457,6 +460,10 @@ class Dingtalk:
             "cardParamMap": cardData
         }, "imGroupOpenSpaceModel"         : {"supportForward": supportForward},
                     "imRobotOpenSpaceModel": {"supportForward": supportForward}, "callbackType": callbackType}
+        if privateData:
+            if isinstance(privateData, PrivateDataBuilder):
+                privateData = privateData.to_json()
+            cardData["privateData"] = privateData
         if callbackType == "HTTP":
             cardData["callbackRouteKey"] = outTrackId
         resp = await self.api_request.post('/v1.0/card/instances', json=cardData)
@@ -480,6 +487,7 @@ class Dingtalk:
         resp = CardResponse()
         resp.outTrackId = outTrackId
         resp.card_data = cardData["cardData"]["cardParamMap"]
+        resp.private_data = privateData
         return resp
 
     async def send_markdown_card(
@@ -525,7 +533,12 @@ class Dingtalk:
             supportForward=supportForward
         )
 
-    async def update_card(self, outTrackId, cardParamData):
+    async def update_card(
+            self,
+            outTrackId: Union[str, CardResponse],
+            cardParamData: Union[dict, Markdown],
+            privateData: Union[dict, PrivateDataBuilder] = None,
+    ):
         if isinstance(outTrackId, CardResponse):
             outTrackId = outTrackId.outTrackId
         if isinstance(cardParamData, Markdown):
@@ -539,6 +552,10 @@ class Dingtalk:
                 "cardParamMap": cardParamData
             }
         }
+        if privateData:
+            if isinstance(privateData, PrivateDataBuilder):
+                privateData = privateData.to_json()
+            body["privateData"] = privateData
         resp = await self.api_request.put('/v1.0/card/instances', json=body)
         if not resp.ok:
             raise DingtalkAPIError(f"Error while update the card.Code={resp.status} text={await resp.text()}")
@@ -1330,12 +1347,11 @@ class Dingtalk:
         def success(*mes):
             logger.success(*mes)
 
-    async def upload_file(self, file: Union[Path, str, File], access_token: str = None) -> File:
+    async def upload_file(self, file: Union[Path, str, File]) -> File:
         """上传一个文件到钉钉并获取mediaId
         
         Args:
             file: 需要上传的文件
-            access_token: 企业的AccessToken
 
         Returns:
             File: 已经填入了mediaId的File对象
@@ -1345,8 +1361,6 @@ class Dingtalk:
             UploadFileSizeError: 文件大小超过限制时抛出
 
         """
-        if not access_token:
-            access_token = self.access_token
         if not isinstance(file, File):
             file_type = str(file)
             file_format = file_type[file_type.rfind('.') + 1:]
@@ -1394,8 +1408,6 @@ class Dingtalk:
         else:
             if size > 20 * MiB:
                 raise UploadFileSizeError(f"Normal file is limited under 20M, but {(size / (1024 ** 2)):.2f}M given!")
-        if not access_token:
-            access_token = self.access_token
         file_hash = hashlib.sha256()
         if isinstance(f, bytes):
             f = BytesIO(f)
@@ -1429,11 +1441,6 @@ class Dingtalk:
                 data.add_field('media', f, filename=file.fileName)
             else:
                 data.add_field('media', f)
-            # async with aiohttp.ClientSession() as session:
-            #     async with session.post(f'https://oapi.dingtalk.com/media/upload?access_token={access_token}',
-            #                             data=data) as resp:
-            #         res_json = await resp.json()
-            #         cache.add_openapi_count()
             res_json = await self.oapi_request.jpost("/media/upload", data=data)
             if res_json.get("errcode"):
                 raise err_reason[res_json.get("errcode")](res_json)
@@ -1795,19 +1802,21 @@ class Dingtalk:
             except Exception as e:
                 logger.exception(f"在处理 {urlPath} 的请求时发生异常。请求头: {headers}请求参数: {kwargs}", e)
 
-        @staticmethod
-        async def after_request(response: ClientResponse):
+        async def after_request(self, response: ClientResponse):
             try:
-                if response.ok:
-                    try:
+                try:
+                    if response.headers.get("Content-Type", "").startswith("application/json"):
                         resp = await response.json()
-                        if resp.get("errcode"):
-                            return
+                        err_code = resp.get("errcode", resp.get("code"))
+                        if err_code or not response.ok:
+                            if self.app.config.raise_for_api_error:
+                                raise err_reason[err_code](resp)
+                    if response.ok:
                         cache.add_openapi_count()
-                    except json.JSONDecodeError:
-                        pass
-                    except Exception as e:
-                        logger.exception(e)
+                except json.JSONDecodeError:
+                    pass
+            except DingtalkAPIError as err:
+                raise err
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
 
@@ -1878,19 +1887,21 @@ class Dingtalk:
             except Exception as e:
                 logger.exception(f"在处理 {urlPath} 的请求时发生异常。请求参数: {kwargs}", e)
 
-        @staticmethod
-        async def after_request(response: ClientResponse):
+        async def after_request(self, response: ClientResponse):
             try:
-                if response.ok:
-                    try:
+                try:
+                    if response.headers.get("Content-Type", "").startswith("application/json"):
                         resp = await response.json()
-                        if resp.get("errcode"):
-                            return
+                        err_code = resp.get("errcode", resp.get("code"))
+                        if err_code or not response.ok:
+                            if self.app.config.raise_for_api_error:
+                                raise err_reason[err_code](resp)
+                    if response.ok:
                         cache.add_openapi_count()
-                    except json.JSONDecodeError:
-                        pass
-                    except Exception as e:
-                        logger.exception(e)
+                except json.JSONDecodeError:
+                    pass
+            except DingtalkAPIError as err:
+                raise err
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
 
