@@ -21,6 +21,26 @@ class BaseCard:
         pass
 
 
+class PrivateDataBuilder:
+
+    def __init__(self, data: dict[str, dict]):
+        self.data = data
+
+    def to_json(self) -> dict:
+        temp_data = {}
+        for k, v in self.data.items():
+            temp_data[k] = {
+                "cardParamMap": v
+            }
+        return temp_data
+
+    def solve(self):
+        for k, v in self.data.items():
+            if isinstance(self.data[k], dict):
+                if len(self.data[k].keys()) == 1 and "cardParamMap" in self.data[k]:
+                    self.data[k] = self.data[k]["cardParamMap"]
+
+
 class AICard(BaseCard):
     response: Optional[Union[SizedIterable[str], list]] = None
     _content_type: Optional[str] = None

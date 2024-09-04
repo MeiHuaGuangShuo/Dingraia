@@ -162,6 +162,7 @@ class Context:
 
 class CardResponse:
     card_data: Optional[dict] = None
+    private_data: Optional[dict] = None
     outTrackId: Optional[str] = None
 
     def __init__(self):
