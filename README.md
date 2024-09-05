@@ -112,6 +112,8 @@ At可以传入Member实例（仅限企业内部机器人）与手机号，会自
 
 查看 [GitBook文档](https://dingraia.gitbook.io/dingraia)
 
+## 示例程序
+
 在 `main_example.py` 中包含了一个和官方相似的示例，使用以下命令即可开启
 ```shell
 python main_example.py -k <AppKey> -s <AppSecret>
@@ -122,6 +124,43 @@ python main_example.py -k <AppKey> -s <AppSecret>
 发送 `/md` 即可发送一个 Markdown 卡片
 
 若命令错误会自动发送提示卡片
+
+### AI 卡片的配置
+
+依次填入 `url`, `payload`, `headers`(可选)，
+然后**自行编写 JSON 解析器**
+
+> 程序已经自动处理流式输出的文本了。原流式传输的格式为
+> ```text
+> data: {"id": 114513, "type": "string", "text": "你"}
+> 
+> data: {"id": 114514, "type": "string", "text": "好"}
+> 
+> data: {"id": 114515, "type": "string", "text": "！"}
+> ```
+> 处理后则会直接返回 JSON 数据
+> ```json
+> {"id": 114513, "type": "string", "text": "你"}
+> ```
+
+例如，如果你的JSON数据是这样的
+
+```json
+{
+    "id": 114513,
+    "type": "string",
+    "text": "你"
+}
+```
+
+则你应该这么写
+
+```python
+def data_handler(data: dict) -> str:
+    return data["text"]
+```
+
+然后一并传入 `withPostUrl` 中
 
 ## 安装
 
