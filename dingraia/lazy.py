@@ -7,6 +7,7 @@ from .saya import *
 from .saya.builtins.broadcast import ListenerSchema
 from .DingTalk import Dingtalk
 from .util.async_exec import io_bound, cpu_bound
+from .card import *
 from loguru import logger
 import asyncio
 
