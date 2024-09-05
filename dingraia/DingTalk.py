@@ -582,7 +582,7 @@ class Dingtalk:
             "outTrackId": outTrackId,
         }
         try:
-            for content in card.streaming_string(length_limit=update_limit):
+            async for content in card.streaming_string(length_limit=update_limit):
                 body["guid"] = str(uuid.uuid1())
                 body["content"] = content
                 res = await self.api_request.jput("/v1.0/card/streaming", json=body)

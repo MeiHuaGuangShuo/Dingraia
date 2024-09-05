@@ -1,4 +1,9 @@
-from typing import Generator, Iterator, List, Literal, Iterable, Optional, Protocol, Union
+from typing import AsyncGenerator, Callable, Generator, Iterator, List, Literal, Iterable, Optional, Protocol, Union
+
+import aiohttp
+
+from ..tools import asyncGenerator2list
+import json as _json
 
 
 class MarkDown(str):
@@ -52,9 +57,18 @@ class AICard(BaseCard):
 
     def set_response(
             self,
-            response: Union[SizedIterable[Union[str, MarkDown]], Generator],
+            response: Union[SizedIterable[Union[str, MarkDown]], Generator, AsyncGenerator],
             content_type: Literal["auto", "full", "stream"] = "auto"
     ):
+        """设置流式回复内容
+
+        Args:
+            response: 回复内容，可以是字符串、Generator、AsyncGenerator
+            content_type: response输出内容的方式，默认为auto自动判断，stream代表每次追加，full代表每次全量
+
+        Returns:
+
+        """
         self.response = response
         self._content_type = content_type
 
@@ -74,7 +88,7 @@ class AICard(BaseCard):
     def set_content(self, content: str):
         self.response = [content]
 
-    def streaming_string(self, length_limit: int = 0):
+    async def streaming_string(self, length_limit: int = 0):
         """流式输出，总是输出完整文本
 
         Args:
@@ -86,22 +100,40 @@ class AICard(BaseCard):
         full_string = ""
         content = ""
         c = ""
-        for c in self.response:
-            self._texts.append(c)
-            content += c
-            if len(content) >= length_limit:
-                self.check_response_type()
-                if self._content_type == "auto":
-                    full_string = content
-                    yield content
-                elif self._content_type == "full":
-                    full_string = c
-                    yield c
-                else:
-                    full_string += content
-                    yield full_string
-                self.text = full_string
-                content = ""
+        if isinstance(self.response, AsyncGenerator):
+            async for c in self.response:
+                self._texts.append(c)
+                content += c
+                if len(content) >= length_limit:
+                    self.check_response_type()
+                    if self._content_type == "auto":
+                        full_string = content
+                        yield content
+                    elif self._content_type == "full":
+                        full_string = c
+                        yield c
+                    else:
+                        full_string += content
+                        yield full_string
+                    self.text = full_string
+                    content = ""
+        else:
+            for c in self.response:
+                self._texts.append(c)
+                content += c
+                if len(content) >= length_limit:
+                    self.check_response_type()
+                    if self._content_type == "auto":
+                        full_string = content
+                        yield content
+                    elif self._content_type == "full":
+                        full_string = c
+                        yield c
+                    else:
+                        full_string += content
+                        yield full_string
+                    self.text = full_string
+                    content = ""
         if len(content) < length_limit:
             self.check_response_type()
             if self._content_type == "auto":
@@ -113,8 +145,8 @@ class AICard(BaseCard):
             self.text = full_string
             yield full_string
 
-    def completed_string(self) -> str:
-        content = list(self.streaming_string())
+    async def completed_string(self) -> str:
+        content = await asyncGenerator2list(self.streaming_string())
         if len(content):
             return content[-1]
         return ""
@@ -122,3 +154,32 @@ class AICard(BaseCard):
     @property
     def data(self):
         return {"content": self.text}
+
+    def withPostUrl(
+            self, post_url: str, json: dict, data_handler: Callable[[dict], str], headers: dict = None,
+            timeout: Optional[float] = None
+    ):
+        async def get_answer():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(post_url, json=json, headers=headers, timeout=timeout) as response:
+                    if response.status != 200:
+                        raise aiohttp.ClientResponseError(f'Status {response.status}, body {await response.text()}')
+                    last_data = ""
+                    async for resp in response.content.iter_any():
+                        if "\n" in (solve_data := resp.decode('utf-8').replace(last_data, '')):
+
+                            def return_answer(line_str: str):
+                                if line_str.startswith('data:'):
+                                    json_str = line_str[len('data:'):].strip()
+                                    if "{" in json_str and "}" in json_str:
+                                        return data_handler(_json.loads(json_str))
+                                return ""
+
+                            for data in solve_data.split('\n'):
+                                answer = return_answer(data)
+                                if answer:
+                                    yield answer
+                                yield ""
+                            last_data = solve_data
+
+        self.set_response(get_answer())
