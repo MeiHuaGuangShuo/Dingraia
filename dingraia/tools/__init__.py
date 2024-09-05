@@ -2,7 +2,7 @@ from pathlib import Path
 from uuid import uuid1
 from io import BytesIO, BufferedReader
 from contextlib import contextmanager
-from typing import Union
+from typing import AsyncGenerator, Union
 
 
 def ColoredFormatter(message: str):
@@ -47,6 +47,16 @@ class NoUseClass:
 
 @contextmanager
 def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str) -> str:
+    """临时写入Bytes到临时目录
+
+    Args:
+        content: Bytes 数据
+        file_extension: 文件后缀名
+
+    Returns:
+        str: 临时文件路径
+
+    """
     fileName = Path.home() / ".dingraia" / f"temp_{uuid1()}.{file_extension}"
     fileName.parent.mkdir(parents=True, exist_ok=True)
     with open(fileName, "wb") as f:
@@ -58,3 +68,16 @@ def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str
             raise TypeError(f"content must be BytesIO or BufferedReader, but got {type(content)}")
     yield str(fileName.resolve())
     fileName.unlink()
+
+
+async def asyncGenerator2list(asyncGenerator: AsyncGenerator) -> list:
+    """转换 AsyncGenerator 为 list
+
+    Args:
+        asyncGenerator: AsyncGenerator
+
+    Returns:
+        list: 转换后的 list
+
+    """
+    return [i async for i in asyncGenerator]
