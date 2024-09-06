@@ -53,6 +53,19 @@ async def ai_reply(app: Dingtalk, group: Group, message: MessageChain):
         # Configure the parsing method of the information flow,
         # the input is the JSON data of each information flow,
         # and the output is the text content of the information flow.
+        # 假设数据流为一下格式 / If the data flow is in the following format:
+        # data: {"mes": "你好"}
+        # 则可以这样配置 / Then you can configure it like this:
+        # data_handler = lambda data: data["mes"]
+        # 你不需要考虑返回的数据是全量还是追加，程序会自动判断。仅在程序判断失误时才应该指定 AICard.content_type
+        # AICard.content_type 的值应该为 "auto", "full" 或 "stream"，否则会抛出 ValueError异常。
+        # You do not need to consider whether the returned data is complete or incremental,
+        # the program will automatically determine it.
+        # You should specify AICard.content_type only when the program makes a mistake.
+        # The value of AICard.content_type should be "auto", "full" or "stream",
+        # otherwise a ValueError exception will be thrown.
+        # 设置方式(在本例) / Set up (in this example):
+        # ai_card.content_type = "full"
         def data_handler(data: dict) -> str:
             return "Configure by your self."
 
