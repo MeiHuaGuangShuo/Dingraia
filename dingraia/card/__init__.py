@@ -47,13 +47,22 @@ class PrivateDataBuilder:
 
 
 class AICard(BaseCard):
+
     response: Optional[Union[SizedIterable[str], list]] = None
-    content_type: Optional[str] = None
+    """流式回复内容，必须是可以被迭代的"""
+
+    content_type: Literal["auto", "full", "stream"] = None
+    """流式回复内容的类型，默认为auto自动判断，full代表每次全量，stream代表每次追加"""
+
     _texts: List[str] = []
+    """流式回复内容的列表"""
+
     text: str = ""
+    """最新的完整文本"""
 
     def __init__(self):
         super().__init__()
+        self.content_type: str = "auto"
 
     def set_response(
             self,
@@ -73,6 +82,8 @@ class AICard(BaseCard):
         self.content_type = content_type
 
     def check_response_type(self) -> str:
+        if self.content_type not in ["auto", "full", "stream"]:
+            raise ValueError(f"content_type must be 'auto', 'full', or 'stream', but got {self.content_type}")
         if not self.content_type:
             self.content_type = "auto"
         if self.content_type == "auto":
@@ -163,7 +174,7 @@ class AICard(BaseCard):
             async with aiohttp.ClientSession() as session:
                 async with session.post(post_url, json=json, headers=headers, timeout=timeout) as response:
                     if response.status != 200:
-                        raise aiohttp.ClientResponseError(f'Status {response.status}, body {await response.text()}')
+                        response.raise_for_status()
                     last_data = ""
                     async for resp in response.content.iter_any():
                         if "\n" in (solve_data := resp.decode('utf-8').replace(last_data, '')):
