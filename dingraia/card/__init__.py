@@ -48,7 +48,7 @@ class PrivateDataBuilder:
 
 class AICard(BaseCard):
     response: Optional[Union[SizedIterable[str], list]] = None
-    _content_type: Optional[str] = None
+    content_type: Optional[str] = None
     _texts: List[str] = []
     text: str = ""
 
@@ -70,20 +70,20 @@ class AICard(BaseCard):
 
         """
         self.response = response
-        self._content_type = content_type
+        self.content_type = content_type
 
     def check_response_type(self) -> str:
-        if not self._content_type:
-            self._content_type = "auto"
-        if self._content_type == "auto":
+        if not self.content_type:
+            self.content_type = "auto"
+        if self.content_type == "auto":
             if len(self._texts) <= 1:
                 pass
             else:
                 if self._texts[1].startswith(self._texts[0]):
-                    self._content_type = "full"
+                    self.content_type = "full"
                 else:
-                    self._content_type = "stream"
-        return self._content_type
+                    self.content_type = "stream"
+        return self.content_type
 
     def set_content(self, content: str):
         self.response = [content]
@@ -106,10 +106,10 @@ class AICard(BaseCard):
                 content += c
                 if len(content) >= length_limit:
                     self.check_response_type()
-                    if self._content_type == "auto":
+                    if self.content_type == "auto":
                         full_string = content
                         yield content
-                    elif self._content_type == "full":
+                    elif self.content_type == "full":
                         full_string = c
                         yield c
                     else:
@@ -123,10 +123,10 @@ class AICard(BaseCard):
                 content += c
                 if len(content) >= length_limit:
                     self.check_response_type()
-                    if self._content_type == "auto":
+                    if self.content_type == "auto":
                         full_string = content
                         yield content
-                    elif self._content_type == "full":
+                    elif self.content_type == "full":
                         full_string = c
                         yield c
                     else:
@@ -136,9 +136,9 @@ class AICard(BaseCard):
                     content = ""
         if len(content) < length_limit:
             self.check_response_type()
-            if self._content_type == "auto":
+            if self.content_type == "auto":
                 full_string = content
-            elif self._content_type == "full":
+            elif self.content_type == "full":
                 full_string = c
             else:
                 full_string += content
