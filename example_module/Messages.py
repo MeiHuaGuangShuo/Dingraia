@@ -2,7 +2,7 @@ from dingraia.lazy import *
 
 
 @channel.use(ListenerSchema(listening_events=[GroupMessage]))
-async def sendDifferentMessageType(app: Dingtalk, group: Group, member: Member, message: MessageChain):
+async def sendDifferentMessageType(app: Dingtalk, group: Group, message: MessageChain):
     if str(message) == "/link":
         await app.send_message(group, Link(
             url="https://github.com/MeiHuaGuangShuo/Dingraia",
