@@ -12,6 +12,8 @@ example_text = """\
 但游戏中各类精心设计的敌人以及Boss战已然将战斗抬高到了一个全新的水平。就和几年前的《塞尔达传说》一样，\
 《原神》也是一款能够推动同类游戏向前发展的优秀作品。
 
+你的问题是 {question}
+
 You are right, but the game of "Genshin Impact" is a new open world adventure game developed by miHoYo. \
 The game takes place in a fictional world called "Tavant", where the chosen ones are granted the power of\
  "the Eye of the Gods", guiding elemental power. You will play the role of a mysterious "Traveler", \
@@ -26,6 +28,8 @@ the weapons and equipment you have missed, and the spells and skills you have ne
 Although the combat experience in the game is similar to what we have seen in the previous generation of games, \
 the game's enemies and Boss fights have pushed the combat to a new level. Just like the previous generation of games, \
 Genshin Impact is a promising game that is driving other similar games forward.
+
+Your question is {question}
 """
 
 
@@ -72,7 +76,7 @@ async def ai_reply(app: Dingtalk, group: Group, message: MessageChain):
         if url:
             ai_card.withPostUrl(url, json=payload, data_handler=data_handler, headers=headers)
         else:
-            response = list(example_text)
+            response = list(example_text.format(question=question))
             ai_card.set_response(response)
         await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
                                update_limit=100)
