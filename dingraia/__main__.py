@@ -9,6 +9,7 @@ from loguru import logger
 from .message.chain import MessageChain
 from .message.element import *
 from .element import *
+from .tools import *
 from .DingTalk import Dingtalk
 
 
