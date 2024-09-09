@@ -2345,6 +2345,9 @@ class Dingtalk:
             logger.warning(f"User forced to quit")
             sys.exit(1)
         logger.warning(f"Ctrl-C triggered.")
+        if self.running_mode == "HTTP":
+            logger.warning("In HTTP mode, you may need to press Ctrl-C again to stop the program.")
+        # TODO 解决 HTTP 模式下无法退出的问题
         exit_signal = True
         self._loop.create_task(self.stop())
 
