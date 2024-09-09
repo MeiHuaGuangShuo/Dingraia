@@ -84,6 +84,7 @@ class Config:
             customStreamConnect: CustomStreamConnect = None,
             autoBotConfig: bool = True,
             useDatabase: bool = True,
+            dataCacheTime: float = 3600,
             webRequestHandlers: List[Middleware] = None,
             raise_for_api_error: bool = True,
     ):
@@ -101,6 +102,7 @@ class Config:
         """
         self.raise_for_api_error = raise_for_api_error
         self.useDatabase = useDatabase
+        self.dataCacheTime = dataCacheTime
         self.event_callback = event_callback
         self.customStreamConnect = customStreamConnect
         self.bot: Optional[Bot] = bot

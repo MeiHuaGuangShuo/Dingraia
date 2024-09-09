@@ -5,8 +5,10 @@ import functools
 import hmac
 import importlib.metadata
 import inspect
+import json
 import random
 import signal
+import time
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from contextlib import contextmanager
@@ -655,44 +657,62 @@ class Dingtalk:
             logger.error(f"Cannot create the group!Response: {json.dumps(res, ensure_ascii=False, indent=4)}")
         return res
 
-    async def get_group(self, openConversationId: Union[OpenConversationId, Group, str], access_token: str = None):
+    async def get_group(
+            self, openConversationId: Union[OpenConversationId, Group, str], access_token: str = None,
+            *, using_cache: bool = False
+            ):
         """获取场景群信息, `2` API 调用量
         
         Args:
             openConversationId: 群对话ID, 可以是OpenConversationId或Group对象
             access_token: 企业的AccessToken
+            using_cache: 是否优先使用缓存数据
 
         Returns:
 
         """
         openConversationId = self._openConversationId2str(openConversationId)
-        if access_token:
-            res = await url_res(f'https://oapi.dingtalk.com/topapi/im/chat/scenegroup/get?access_token={access_token}',
-                                'POST',
-                                json={'open_conversation_id': openConversationId}, res='json')
+        cached = self.get_info(OpenConversationId(openConversationId))
+        if self.is_cache_needed(cached, using_cache=using_cache):
+            res = cached[0]
         else:
-            res = await self.oapi_request.jpost("/topapi/im/chat/scenegroup/get",
-                                                json={'open_conversation_id': openConversationId})
-        if res['errcode']:
-            if res['errcode'] == 4000003:
-                logger.error(f"OpenConversationId 对应的群不是由群模板创建的或没有酷应用支持！")
-            res['success'] = False
-            return res
-        if access_token:
-            users_res = await url_res(
-                f'https://oapi.dingtalk.com/topapi/im/chat/scenegroup/member/get?access_token={access_token}',
-                'POST',
-                json={'openConversationId': openConversationId, "maxResults": 1000},
-                res='json')
-        else:
-            users_res = await self.oapi_request.jpost('/topapi/im/chat/scenegroup/member/get',
-                                                      json={'open_conversation_id': openConversationId, "size": 1000,
-                                                            "cursor"              : 0})
-            users_res = users_res.get('result', {})
-        res: dict = res['result']
-        res['user_ids'] = users_res.get('member_user_ids')
-        res['staff_id_nick_map'] = users_res.get('staff_id_nick_map')
-        res['success'] = True
+            if access_token:
+                res = await url_res(
+                    f'https://oapi.dingtalk.com/topapi/im/chat/scenegroup/get?access_token={access_token}',
+                    'POST',
+                    json={'open_conversation_id': openConversationId}, res='json')
+            else:
+                res = await self.oapi_request.jpost("/topapi/im/chat/scenegroup/get",
+                                                    json={'open_conversation_id': openConversationId})
+            if res['errcode']:
+                if res['errcode'] == 4000003:
+                    logger.error(f"OpenConversationId 对应的群不是由群模板创建的或没有酷应用支持！")
+                res['success'] = False
+                return res
+            if access_token:
+                users_res = await url_res(
+                    f'https://oapi.dingtalk.com/topapi/im/chat/scenegroup/member/get?access_token={access_token}',
+                    'POST',
+                    json={'openConversationId': openConversationId, "maxResults": 1000},
+                    res='json')
+            else:
+                users_res = await self.oapi_request.jpost('/topapi/im/chat/scenegroup/member/get',
+                                                          json={'open_conversation_id': openConversationId,
+                                                                "size"                : 1000,
+                                                                "cursor"              : 0})
+                users_res = users_res.get('result', {})
+            res: dict = res['result']
+            res['user_ids'] = users_res.get('member_user_ids')
+            res['staff_id_nick_map'] = users_res.get('staff_id_nick_map')
+            res['success'] = True
+            if self.config.useDatabase:
+                if cache.value_exist("group_info", "openConversationId", openConversationId):
+                    cache.execute(
+                        f"UPDATE group_info SET name='{res['title']}',info='{json.dumps(res)}',timeStamp={time.time()} WHERE openConversationId='{openConversationId}'")
+                else:
+                    cache.execute(
+                        f"INSERT INTO group_info (id,chatId,openConversationId,name,info,timeStamp) VALUES ('','','{openConversationId}','{res['title']}','{json.dumps(res)}',{time.time()})")
+                cache.commit()
         return res
 
     async def get_depts(self, deptId: int = 1, access_token: str = None):
@@ -733,26 +753,46 @@ class Dingtalk:
             raise err_reason[res['errcode']](res)
         return res['result'].get('userid_list', [])
 
-    async def get_user(self, userStaffId: Union[Member, str], language: str = "zh_CN", access_token: str = None):
+    async def get_user(
+            self, userStaffId: Union[Member, str], language: str = "zh_CN", access_token: str = None,
+            *, using_cache: bool = False
+            ):
         """获取用户详细信息
+
+        Notes
+            自 2.1.0 起，该接口直接返回用户信息，不再返回原始信息
         
         Args:
             userStaffId: 用户的StaffID
             language: 语言. 默认zh-CN
             access_token: 企业的AccessToken
+            using_cache: 是否优先使用缓存数据
 
         Returns:
 
         """
         userStaffId = self._staffId2str(userStaffId)
-        if access_token:
-            res = await url_res(
-                f'https://oapi.dingtalk.com/topapi/v2/user/get?access_token={access_token}',
-                'POST',
-                json={"language": language, "userid": userStaffId}, res='json')
+        cached = self.get_info(Member(staffId=userStaffId))
+        if self.is_cache_needed(cached, using_cache=using_cache):
+            res = cached[0]
         else:
-            res = await self.oapi_request.jpost("/topapi/v2/user/get",
-                                                json={"language": language, "userid": userStaffId})
+            if access_token:
+                res = await url_res(
+                    f'https://oapi.dingtalk.com/topapi/v2/user/get?access_token={access_token}',
+                    'POST',
+                    json={"language": language, "userid": userStaffId}, res='json')
+            else:
+                res = await self.oapi_request.jpost("/topapi/v2/user/get",
+                                                    json={"language": language, "userid": userStaffId})
+            res = res['result']
+            if self.config.useDatabase:
+                if cache.value_exist("user_info", "staffId", userStaffId):
+                    cache.execute(
+                        f"UPDATE user_info SET info='{json.dumps(res)}',timeStamp={time.time()} WHERE staffId={userStaffId}")
+                else:
+                    cache.execute(
+                        f"INSERT INTO user_info (id,name,staffId,info,timeStamp) VALUES ('','',{userStaffId},'{json.dumps(res)}',{time.time()})")
+                cache.commit()
         return res
 
     async def remove_user(self, userStaffId: Union[Member, str], access_token: str = None):
@@ -2347,12 +2387,12 @@ class Dingtalk:
         logger.warning(f"Ctrl-C triggered.")
         if self.running_mode == "HTTP":
             logger.warning("In HTTP mode, you may need to press Ctrl-C again to stop the program.")
-        # TODO 解决 HTTP 模式下无法退出的问题
+        # TODO 解决单 HTTP 模式下无法退出的问题
         exit_signal = True
         self._loop.create_task(self.stop())
 
     async def stop(self):
-        self.log.info("Stopping Dingraia...")
+        logger.info("Stopping Dingraia...")
         if isinstance(self._clientSession, ClientSession):
             if not self._clientSession.closed:
                 await self._clientSession.close()
@@ -2443,6 +2483,50 @@ class Dingtalk:
             return True
         return False
 
+    @staticmethod
+    def get_info(target: Union[OpenConversationId, Group, Member, int, str]):
+        """从缓存中读取数据
+
+        Args:
+            target:
+
+        Returns:
+
+        """
+        if isinstance(target, str):
+            if target.startswith("cid"):
+                target = OpenConversationId(openConversationId=target)
+            else:
+                target = Member(staffId=target)
+        elif isinstance(target, int):
+            s_t = str(target)
+            if 8 < len(s_t) < 11:
+                target = Group(id=s_t)
+            else:
+                target = Member(staffId=s_t)
+        if isinstance(target, OpenConversationId):
+            target = target.openConversationId
+            res = cache.execute(f"SELECT * FROM `group_info` WHERE `openConversationId` = '{target}'", result=True)
+            if res:
+                return json.loads(res[0][4]), res[0][5]
+            return {}, 0
+        elif isinstance(target, Group):
+            if not target.id:
+                raise ValueError(f"Empty group id: {target}")
+            target = target.id
+            res = cache.execute(f"SELECT * FROM `group_info` WHERE `id` = '{target}'", result=True)
+            if res:
+                return json.loads(res[0][4]), res[0][5]
+            return {}, 0
+        elif isinstance(target, Member):
+            target = target.staffId
+            res = cache.execute(f"SELECT * FROM `user_info` WHERE `staffId` = '{target}'", result=True)
+            if res:
+                return json.loads(res[0][3]), res[0][4]
+            return {}, 0
+        else:
+            raise ValueError(f"Invalid target type: {type(target)}")
+
     def _add_message_times(self, target: Union[TraceId, OpenConversationId, Group, Member], no_raise: bool = False):
         if isinstance(target, (Group, Member, OpenConversationId, TraceId)):
             if isinstance(target, (Group, Member, OpenConversationId)):
@@ -2462,6 +2546,24 @@ class Dingtalk:
     @property
     def running_mode(self):
         return ', '.join(self._running_mode)
+
+    def is_cache_needed(self, cached_obj: tuple, using_cache: bool = False) -> bool:
+        """判断是否可以使用缓存的数据
+
+        Args:
+            cached_obj: 从get_info中获取的值
+            using_cache: 是否需要使用cache，如果是，则在含有缓存的时候尝试使用缓存，否则仍然提交API请求
+
+        Returns:
+            bool: 是否可以使用缓存数据
+
+        """
+        if using_cache:
+            if cached_obj[0]:
+                return True
+            return False
+        else:
+            return self.config.useDatabase and time.time() - cached_obj[1] < self.config.dataCacheTime and cached_obj[0]
 
     @staticmethod
     def _openConversationId2str(openConversationId: Union[OpenConversationId, Group, str]) -> str:
