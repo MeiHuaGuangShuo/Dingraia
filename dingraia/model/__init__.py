@@ -54,9 +54,10 @@ class Group:
             conversationId = origin.get('conversationId')
             limit_time = origin.get('sessionWebhookExpiredTime') or 0
             self.webhook = Webhook(origin=origin)
-        self.origin_id = id[id.rfind("$"):]
+        self.origin_id = id[id.rfind("$"):] if id else ""
         """原始加密"""
-        self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (10 ** 10) + 1000
+        self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (
+                    10 ** 10) + 1000 if self.origin_id else 0
         """计算所得ID，非真实群号"""
         self.name = name or "Unknown"
         """群聊的真实名称"""
@@ -102,8 +103,9 @@ class Member:
             name = origin.get("senderNick")
             staffid = origin.get("senderStaffId") or origin.get("StaffId")
             admin = origin.get("isAdmin")
-        self.origin_id = id[id.rfind("$"):]
-        self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (10 ** 10) + 1000
+        self.origin_id = id[id.rfind("$"):] if id else ""
+        self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (
+                    10 ** 10) + 1000 if self.origin_id else 0
         self.name = name
         self.staffid = staffid or staffId
         self.staffId = staffid or staffId
@@ -125,8 +127,9 @@ class Bot:
             id = origin.get('chatbotUserId')
             corp_id = origin.get("chatbotCorpId") or origin.get('CropId')
             robot_code = origin.get("robotCode")
-        self.origin_id = id[id.rfind("$"):]
-        self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (10 ** 10) + 1000
+        self.origin_id = id[id.rfind("$"):] if id else ""
+        self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (
+                    10 ** 10) + 1000 if self.origin_id else 0
         self.corp_id = corp_id
         self.robot_code = robot_code
 
