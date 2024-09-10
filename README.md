@@ -1,4 +1,4 @@
-此文档最后更新于24/8/13 `v2.1.0-Pre`
+此文档最后更新于24/9/10 `v2.1.0-Pre`
 
 # 破坏性更改
 
@@ -47,7 +47,7 @@
     - 发送互动卡片 (自行构造JSON数据)
         - 预设 Markdown 卡片
     - 改变卡片内容 (自行构造JSON数据)
-  - 发送 AI 卡片，支持流式更新 (需要配置)
+  - 发送 AI 卡片，支持流式更新 (需要[配置](#ai-卡片的配置))
     - 创建群
     - 获取群消息
     - 获取部门消息
@@ -55,7 +55,7 @@
     - 删除用户 (组织)
     - 创建用户 (组织)
     - 更新用户信息 (组织)
-    - 复制群 (未来可能移除)
+  - 复制群 **(未来可能移除)**
     - 更新群信息
         - 同源功能
             - 更新群标题
@@ -73,8 +73,9 @@
     - HTTP & Stream 同时运行
     - 运行周期内上传文件缓存
   - 支持插件
-    - 即时重载 Debug 模式
+  - [即时重载 Debug 模式](#debug-模式)
   - **临时**切换全局**默认** `AccessToken`
+  - [用户/群组信息缓存](#关于缓存)
     - ~~即时载入/卸载模块~~ (有Bug，仅可载入，无法卸载)
 
 # 注意
@@ -341,6 +342,32 @@ from dingraia.lazy import *
 def sync_example(app: Dingtalk):
     app.run_coroutine(app.mute_all(...)) # 使用的是app.loop执行的
 ```
+
+# 关于缓存
+
+程序默认在遇到以下情况时更新可以更新的缓存：
+
+- 调用 `get_user`、`get_group` 的时候
+- 遇到群组名称更新时
+- 每次接收到信息时
+
+如果需要设置禁言缓存或设置缓存时长，请在启动文件中添加额外参数
+
+```python
+from dingraia.lazy import *
+from dingraia.config import Config
+
+app = Dingtalk(
+    config=Config(
+        useDatabase=False,  # 禁用内置数据库即禁用缓存
+        dataCacheTime=86400  # 设置 get_user 等函数的允许使用缓存的时长
+    )
+)
+app.get_user("StaffId", using_cache=True)  # using_cache 用于优先使用缓存，如果没有缓存仍然会从API获取用户信息
+```
+
+当使用缓存时，`get_user`、`get_group` 将会在字典中添加 `dingraia_cache` 的键，
+内容为部分缓存的值，一般包括 `id`,`staffId`,`openConversationId`,`name`,`timeStamp`之类
 
 # 兼容度
 

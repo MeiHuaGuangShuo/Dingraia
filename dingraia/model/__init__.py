@@ -1,6 +1,8 @@
+import time
 import hashlib
 from typing import Union
 from ..element import OpenConversationId, TraceId
+from ..cache import cache
 
 
 class Webhook:
@@ -39,7 +41,7 @@ class Group:
     traceId: TraceId = None
 
     def __init__(
-            self, id: str = None,
+            self,
             name: str = None,
             send_url: str = None,
             conversationId: str = None,
@@ -48,13 +50,12 @@ class Group:
     ):
         self.webhook = None
         if origin is not None:
-            id = origin.get('conversationId')
             name = origin.get("conversationTitle")
             send_url = origin.get('sessionWebhook')
             conversationId = origin.get('conversationId')
             limit_time = origin.get('sessionWebhookExpiredTime') or 0
             self.webhook = Webhook(origin=origin)
-        self.origin_id = id[id.rfind("$"):] if id else ""
+        self.origin_id = conversationId if conversationId else ""
         """原始加密"""
         self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (
                     10 ** 10) + 1000 if self.origin_id else 0
@@ -65,6 +66,26 @@ class Group:
         """群聊的临时Webhook地址，含有URL和过期时间戳"""
         self.openConversationId: OpenConversationId = OpenConversationId(conversationId, self.name, self.id)
         """对话ID"""
+        if origin is not None:
+            self.update_cache()  # 为了防止特殊实例化数据覆盖缓存，只在有源请求才更新缓存
+
+    def update_cache(self):
+        if self.openConversationId is not None and self.id:
+            if cache.value_exist("group_info", "openConversationId", str(self.openConversationId)):
+                cache.execute("UPDATE group_info SET `id`=?,`chatId`=?,`name`=?,timeStamp=? WHERE "
+                              "`openConversationId`=?",
+                              (self.id, self.origin_id, self.name, time.time(), str(self.openConversationId)))
+            else:
+                cache.execute("INSERT INTO group_info (`id`,`chatId`,`openConversationId`,`name`,`info`,`timeStamp`) "
+                              "VALUES (?,?,?,?,?,?)", (self.id, self.origin_id, str(self.openConversationId),
+                                                       self.name, "{}", time.time()))
+            if cache.value_exist("webhooks", "openConversationId", str(self.openConversationId)):
+                cache.execute("UPDATE webhooks SET `url`=?,`expired`=?,timeStamp=? WHERE `openConversationId`=?",
+                              (self.webhook.url, self.webhook.expired_time, time.time(), str(self.openConversationId)))
+            else:
+                cache.execute(
+                    "INSERT INTO `webhooks` (id, openConversationId, url, expired, timeStamp) VALUES (?,?,?,?,?)",
+                    (self.id, str(self.openConversationId), self.webhook.url, self.webhook.expired_time, time.time()))
 
     def __int__(self) -> int:
         return self.id
@@ -75,6 +96,7 @@ class Group:
 
 class Member:
     traceId: TraceId = None
+    """追溯ID"""
 
     def __init__(
             self,
@@ -111,6 +133,17 @@ class Member:
         self.staffId = staffid or staffId
         self.group = group
         self.admin = admin
+        if origin is not None:
+            self.update_cache(origin=origin)
+
+    def update_cache(self, origin: dict):
+        if origin.get('conversationType') == '1':
+            if cache.value_exist("user_info", "id", str(self.id)):
+                cache.execute("UPDATE user_info SET `name`=?,`staffId`=?,timeStamp=? WHERE `id`=?",
+                              (self.name, self.staffId, time.time(), str(self.id)))
+            else:
+                cache.execute("INSERT INTO user_info (`id`,`name`,`staffId`,`unionId`, `info`,`timeStamp`) "
+                              "VALUES (?,?,?,?,?,?)", (str(self.id), self.name, self.staffId, '', '{}', time.time()))
 
     def __int__(self) -> int:
         return self.id

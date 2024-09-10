@@ -19,27 +19,28 @@ class Cache:
         self.db = sqlite3.connect(databaseName, **kwargs)
         self.cursor = self.db.cursor()
         self.init_tables()
-        
+
     def change_database(self, databaseName):
         self.close()
         self.enable = True
         self.connect(databaseName=databaseName)
-        
-    def execute(self, command, result=False):
+
+    def execute(self, command: str, params=tuple(), *, result: bool = False):
         if self.enable:
-            self.cursor.execute(command)
+            self.cursor.execute(command, params)
             if result:
                 return self.cursor.fetchall()
         else:
             return ()
-        
+
     def get_tables(self):
-        res = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", True)
+        res = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';",
+                           result=True)
         return [x[0] for x in res]
-    
+
     def get_table(self, table):
-        return self.execute(f"SELECT * FROM {table};", True)
-    
+        return self.execute(f"SELECT * FROM {table};", result=True)
+
     def create_table(self, table_name, keys):
         if self.enable:
             if keys:
@@ -69,15 +70,15 @@ class Cache:
         elif typ == int:
             return "BIGINT"
         return typ
-    
+
     def drop_table(self, table):
         self.execute(f"DROP TABLE {table};")
         self.commit()
-        
+
     def rename_table(self, table, new_name):
         self.execute(f"ALTER TABLE {table} RENAME TO {new_name};")
         self.commit()
-        
+
     def add_column(self, table, key, typ):
         self.execute(f"ALTER TABLE {table} ADD COLUMN {key} {typ};")
         self.commit()
@@ -87,15 +88,18 @@ class Cache:
         columns = self.cursor.fetchall()
         column_dict = {col[1]: col[2] for col in columns}
         return column_dict
-    
+
     def init_tables(self):
         to_tables = {
-            "webhooks": {
-                "id": str,
-                "url": str
+            "webhooks"  : {
+                "id"                : int,
+                "openConversationId": str,
+                "url"               : str,
+                "expired"           : int,
+                "timeStamp"         : int,
             },
             "group_info": {
-                "id"       : str,
+                "id"       : int,
                 "chatId"   : str,
                 "openConversationId": str,
                 "name"     : str,
@@ -103,13 +107,14 @@ class Cache:
                 "timeStamp": int,
             },
             "user_info" : {
-                "id"       : str,
+                "id"     : int,
                 "name"     : str,
                 "staffId"  : str,
+                "unionId": str,
                 "info"     : str,
                 "timeStamp": int,
             },
-            "counts": {
+            "counts"    : {
                 "type": str,
                 "count": int
             }
@@ -130,7 +135,8 @@ class Cache:
             else:
                 self.create_table(t, v)
 
-    def columns_match(self, table_columns, expected_columns):
+    @staticmethod
+    def columns_match(table_columns, expected_columns):
         # 检查表中的列是否与预期的列匹配
         for col, col_type in expected_columns.items():
             if col not in table_columns or table_columns[col] != col_type:
@@ -138,7 +144,7 @@ class Cache:
         return True
 
     def value_exist(self, table, column, value) -> bool:
-        return bool(self.execute(f"SELECT * FROM `{table}` WHERE {column}='{value}'", result=True))
+        return bool(self.execute(f"SELECT * FROM `{table}` WHERE {column}=?", (value,), result=True))
     
     def add_value(self, table, column, name, index, add: int = 1):
         if self.value_exist(table, column, name):
@@ -154,14 +160,14 @@ class Cache:
         else:
             self.execute(f"INSERT INTO `counts` (type, count) VALUES ('{current_month}', {times});")
         self.commit()
-    
+
     def get_api_counts(self):
         current_month = datetime.datetime.now().strftime('openApi_%Y_%m')
         res = self.execute(f"SELECT * FROM `counts` WHERE type='{current_month}'", result=True)
         if res:
             return res[0][1]
         return 0
-                
+
     def commit(self):
         if self.enable:
             self.db.commit()
@@ -184,7 +190,7 @@ class Cache:
         self.db = None
         self.db_name = None
         self.cursor = None
-        
-        
+
+
 cache = Cache()
 cache.connect(check_same_thread=False)

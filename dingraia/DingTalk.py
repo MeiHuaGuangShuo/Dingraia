@@ -5,33 +5,28 @@ import functools
 import hmac
 import importlib.metadata
 import inspect
-import json
 import random
 import signal
-import time
-from concurrent.futures import ThreadPoolExecutor
-from io import BytesIO
-from contextlib import contextmanager
-
-import mutagen
-from moviepy.editor import VideoFileClip
 import socket
 import sys
 import urllib.parse
-from urllib.parse import urlencode, urljoin, urlparse
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from functools import reduce
-from typing import Callable, Dict, Coroutine, Any, TypeVar
+from io import BytesIO
+from typing import Any, Coroutine, Dict, TypeVar
+from urllib.parse import urlencode, urljoin, urlparse
 
-import aiohttp
+import mutagen
 import websockets
-from aiohttp import ClientSession, ClientResponse, web
+from aiohttp import ClientResponse, ClientSession, web
+from moviepy.editor import VideoFileClip
 
-from .tools import write_temp_file
-from .card import *
 from .VERSION import VERSION
 from .callback_handler import callback_handler
-from .config import Config, Stream, CustomStreamConnect
+from .card import *
+from .config import Config, CustomStreamConnect, Stream
 from .element import *
 from .event import MessageEvent
 from .event.event import *
@@ -43,13 +38,11 @@ from .message.element import *
 from .model import Group, Webhook
 from .module import load_modules
 from .saya import Channel, Saya
-from .signer import sign_js, decrypt
+from .signer import decrypt, sign_js
+from .tools import write_temp_file
 from .tools.debug import delog
-from .verify import get_token
-from .verify import url_res
 from .vars import *
-from .cache import cache
-from .log import logger
+from .verify import get_token, url_res
 
 send_url = "https://oapi.dingtalk.com/robot/send?access_token={}&timestamp={}&sign={}"
 channel = Channel.current()
@@ -244,6 +237,7 @@ class Dingtalk:
         if not target:
             if not self.config.bot.GroupWebhookSecureKey or not self.config.bot.GroupWebhookAccessToken:
                 raise ConfigError("Not GroupWebhookSecureKey or GroupWebhookAccessToken provided!")
+        target = self.update_object(target)
         if target is None:
             sign = self.get_sign()
             url = send_url.format(sign[2], sign[1], sign[0])
@@ -660,7 +654,7 @@ class Dingtalk:
     async def get_group(
             self, openConversationId: Union[OpenConversationId, Group, str], access_token: str = None,
             *, using_cache: bool = False
-            ):
+    ):
         """获取场景群信息, `2` API 调用量
         
         Args:
@@ -708,10 +702,12 @@ class Dingtalk:
             if self.config.useDatabase:
                 if cache.value_exist("group_info", "openConversationId", openConversationId):
                     cache.execute(
-                        f"UPDATE group_info SET name='{res['title']}',info='{json.dumps(res)}',timeStamp={time.time()} WHERE openConversationId='{openConversationId}'")
+                        f"UPDATE group_info SET name=?,info=?,timeStamp=? WHERE openConversationId=?",
+                        (res['title'], json.dumps(res), time.time(), openConversationId))
                 else:
                     cache.execute(
-                        f"INSERT INTO group_info (id,chatId,openConversationId,name,info,timeStamp) VALUES ('','','{openConversationId}','{res['title']}','{json.dumps(res)}',{time.time()})")
+                        f"INSERT INTO group_info (id,chatId,openConversationId,name,info,timeStamp) VALUES (?,?,?,?,?,?)",
+                        ('', '', openConversationId, res['title'], json.dumps(res), time.time()))
                 cache.commit()
         return res
 
@@ -756,7 +752,7 @@ class Dingtalk:
     async def get_user(
             self, userStaffId: Union[Member, str], language: str = "zh_CN", access_token: str = None,
             *, using_cache: bool = False
-            ):
+    ):
         """获取用户详细信息
 
         Notes
@@ -788,10 +784,12 @@ class Dingtalk:
             if self.config.useDatabase:
                 if cache.value_exist("user_info", "staffId", userStaffId):
                     cache.execute(
-                        f"UPDATE user_info SET info='{json.dumps(res)}',timeStamp={time.time()} WHERE staffId={userStaffId}")
+                        f"UPDATE user_info SET info=?,timeStamp=? WHERE staffId=?",
+                        (json.dumps(res), time.time(), userStaffId))
                 else:
                     cache.execute(
-                        f"INSERT INTO user_info (id,name,staffId,info,timeStamp) VALUES ('','',{userStaffId},'{json.dumps(res)}',{time.time()})")
+                        f"INSERT INTO user_info (id,name,staffId,unionId,info,timeStamp) VALUES (?,?,?,?,?,?)",
+                        ('', '', userStaffId, '', json.dumps(res), time.time()))
                 cache.commit()
         return res
 
@@ -1578,7 +1576,7 @@ class Dingtalk:
     @logger.catch
     async def bcc(self, data: dict):
         delog.info(json.dumps(data, indent=2, ensure_ascii=False), no=50)
-        _e = self.disPackage(data)
+        _e = await self.disPackage(data)
         if _e.get('success'):
             _e['send_data'].append(self)
             if not isinstance(_e.get('event_type'), list):
@@ -1591,16 +1589,16 @@ class Dingtalk:
             for e in _e.get('send_data'):
                 if isinstance(e, (Group, Member, OpenConversationId)):
                     e.traceId = traceId
-            for event in _e.get('event_type'):
-                if event is not None:
-                    await channel.radio(event, *_e.get('send_data'), traceId=traceId)
+            events = [x for x in _e.get('event_type') if x is not None]
+            for event in events:
+                await channel.radio(event, *_e.get('send_data'), traceId=traceId)
         if not _e:
             logger.warning("无法解包！")
             return ""
         return _e.get('returns') or {'err': 0}
 
     @logger.catch
-    def disPackage(self, data: dict) -> dict:
+    async def disPackage(self, data: dict) -> dict:
         traceId = TraceId(str(uuid.uuid4()))
         if "conversationType" in data:
             conversationType = data.get("conversationType")
@@ -1700,7 +1698,7 @@ class Dingtalk:
                     }
                 if type(_e) is dict:
                     logger.info(_e)
-                    res = callback_handler(_e, data)
+                    res = callback_handler(self, _e, data)
                     return_data = {
                         "success"   : True,
                         "send_data" : [res] if not isinstance(res, list) else res,
@@ -1730,7 +1728,7 @@ class Dingtalk:
         elif 'EventType' in data:
             if is_debug:
                 logger.info(data)
-            res = callback_handler(data)
+            res = callback_handler(self, data)
             if traceId not in self.message_trace_id:
                 self.message_trace_id[traceId] = {}
             self.message_trace_id[traceId]["items"] = [res] if not isinstance(res, list) else res
@@ -2500,29 +2498,63 @@ class Dingtalk:
                 target = Member(staffId=target)
         elif isinstance(target, int):
             s_t = str(target)
-            if 8 < len(s_t) < 11:
-                target = Group(id=s_t)
+            if 7 < len(s_t) < 11:
+                t = Group()
+                t.id = s_t
+                target = t
             else:
                 target = Member(staffId=s_t)
         if isinstance(target, OpenConversationId):
             target = target.openConversationId
-            res = cache.execute(f"SELECT * FROM `group_info` WHERE `openConversationId` = '{target}'", result=True)
+            res = cache.execute(f"SELECT * FROM `group_info` WHERE `openConversationId`=?", (target,), result=True)
             if res:
-                return json.loads(res[0][4]), res[0][5]
+                if res[0]:
+                    main_info = json.loads(res[0][4])
+                    main_info["dingraia_cache"] = {
+                        "id"                : res[0][0],
+                        "chatId"            : res[0][1],
+                        "openConversationId": res[0][2],
+                        "name"              : res[0][3],
+                        "timeStamp"         : res[0][5],
+                    }
+                    return main_info, res[0][5]
             return {}, 0
         elif isinstance(target, Group):
-            if not target.id:
+            if target.id:
+                target = target.id
+                res = cache.execute(f"SELECT * FROM `group_info` WHERE `id`=?", (target,), result=True)
+            elif target.openConversationId:
+                res = cache.execute(
+                    f"SELECT * FROM `group_info` WHERE `openConversationId`=?", (target.openConversationId,),
+                    result=True)
+            else:
                 raise ValueError(f"Empty group id: {target}")
-            target = target.id
-            res = cache.execute(f"SELECT * FROM `group_info` WHERE `id` = '{target}'", result=True)
             if res:
-                return json.loads(res[0][4]), res[0][5]
+                if res[0]:
+                    main_info = json.loads(res[0][4])
+                    main_info["dingraia_cache"] = {
+                        "id"                : res[0][0],
+                        "chatId"            : res[0][1],
+                        "openConversationId": res[0][2],
+                        "name"              : res[0][3],
+                        "timeStamp"         : res[0][5],
+                    }
+                    return main_info, res[0][5]
             return {}, 0
         elif isinstance(target, Member):
             target = target.staffId
-            res = cache.execute(f"SELECT * FROM `user_info` WHERE `staffId` = '{target}'", result=True)
+            res = cache.execute(f"SELECT * FROM `user_info` WHERE `staffId`=?", (target,), result=True)
             if res:
-                return json.loads(res[0][3]), res[0][4]
+                if res[0]:
+                    main_info = json.loads(res[0][4])
+                    main_info["dingraia_cache"] = {
+                        "id"       : res[0][0],
+                        "name"     : res[0][1],
+                        "staffId"  : res[0][2],
+                        "unionId"  : res[0][3],
+                        "timeStamp": res[0][5],
+                    }
+                    return main_info, res[0][5]
             return {}, 0
         else:
             raise ValueError(f"Invalid target type: {type(target)}")
@@ -2560,7 +2592,8 @@ class Dingtalk:
         """
         if using_cache:
             if cached_obj[0]:
-                return True
+                if len(cached_obj[0]) > 1:
+                    return True
             return False
         else:
             return self.config.useDatabase and time.time() - cached_obj[1] < self.config.dataCacheTime and cached_obj[0]
@@ -2587,6 +2620,37 @@ class Dingtalk:
         else:
             staffId = [str(staffId)]
         return staffId
+
+    def update_object(self, obj: Union[Group, Member, OpenConversationId]):
+        """从缓存中更新数据
+
+        Args:
+            obj:
+
+        Returns:
+
+        """
+        if isinstance(obj, Group):
+            c = self.get_info(obj)
+            if c[0]:
+                if not obj.name:
+                    if c[0].get("title"):
+                        obj.name = c[0].get('title')
+        elif isinstance(obj, Member):
+            c = self.get_info(obj)
+            if c[0]:
+                if not obj.name:
+                    if c[0].get("name"):
+                        obj.name = c[0].get('name')
+        elif isinstance(obj, OpenConversationId):
+            c = self.get_info(obj)
+            if c[0]:
+                if not obj.name or obj.name == "未知会话":
+                    if c[0].get("title"):
+                        obj.name = c[0].get('title')
+        else:
+            raise ValueError(f"Invalid object type: {type(obj)}")
+        return obj
 
     async def _file2mediaId(self, file: Union[File, str]) -> str:
         if isinstance(file, File):

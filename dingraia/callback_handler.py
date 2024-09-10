@@ -1,8 +1,9 @@
 from .event.event import *
 from .element import EasyDict
+from .cache import cache
 
 
-def callback_handler(event_body: dict, raw_body=None, trace_id=None):
+def callback_handler(app, event_body: dict, raw_body=None, trace_id=None):
     if raw_body is None:
         raw_body = {}
     event = None
@@ -17,6 +18,13 @@ def callback_handler(event_body: dict, raw_body=None, trace_id=None):
                 event = ChatKick()
             elif event_body.EventType == 'chat_update_title':
                 event = GroupNameChange()
+                if cache.value_exist("group_info", "openConversationId", event_body.openConversationId):
+                    cache.execute("UPDATE group_info SET name=? WHERE openConversationId=?",
+                                  (event_body.Title, event_body.openConversationId))
+                else:
+                    cache.execute(
+                        "INSERT INTO group_info (`id`,`chatId`,`openConversationId`,`name`,`info`,`timeStamp`) VALUES "
+                        "(?,?,?,?,?,?)", ('', '', event_body.openConversationId, event_body.Title, '', time.time()))
             elif event_body.EventType == 'chat_disband':
                 event = GroupDisband()
             event.time = event_body.Timestamp
