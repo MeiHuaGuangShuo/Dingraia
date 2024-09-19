@@ -1,6 +1,6 @@
 import time
 import hashlib
-from typing import Union
+from typing import Optional, Union
 from ..element import OpenConversationId, TraceId
 from ..cache import cache
 
@@ -36,6 +36,9 @@ class Webhook:
     def __float__(self) -> float:
         return self.expired_time
 
+    def __bool__(self):
+        return time.time() < self.expired_time
+
 
 class Group:
     traceId: TraceId = None
@@ -62,9 +65,11 @@ class Group:
         """计算所得ID，非真实群号"""
         self.name = name or "Unknown"
         """群聊的真实名称"""
-        self.webhook = self.webhook or Webhook(send_url, limit_time)
+        self.webhook = (self.webhook or Webhook(send_url, limit_time)) if send_url and limit_time else Webhook('', 0)
         """群聊的临时Webhook地址，含有URL和过期时间戳"""
-        self.openConversationId: OpenConversationId = OpenConversationId(conversationId, self.name, self.id)
+        self.openConversationId: OpenConversationId = OpenConversationId(conversationId, self.name,
+                                                                         self.id) if conversationId else OpenConversationId(
+            '')
         """对话ID"""
         if origin is not None:
             self.update_cache()  # 为了防止特殊实例化数据覆盖缓存，只在有源请求才更新缓存
@@ -86,6 +91,7 @@ class Group:
                 cache.execute(
                     "INSERT INTO `webhooks` (id, openConversationId, url, expired, timeStamp) VALUES (?,?,?,?,?)",
                     (self.id, str(self.openConversationId), self.webhook.url, self.webhook.expired_time, time.time()))
+            cache.commit()
 
     def __int__(self) -> int:
         return self.id
@@ -97,6 +103,33 @@ class Group:
 class Member:
     traceId: TraceId = None
     """追溯ID"""
+
+    avatar: Optional[str] = None
+    """头像"""
+
+    mobile: Optional[str] = None
+    """手机号"""
+
+    stateCode: Optional[str] = None
+    """国家码"""
+
+    isHideMobile: Optional[bool] = None
+    """是否隐藏手机号"""
+
+    isRealAuthed: Optional[bool] = None
+    """是否实名认证"""
+
+    isSenior: Optional[bool] = None
+    """是否为高管"""
+
+    isBoss: Optional[bool] = None
+    """是否为老板"""
+
+    deptIdList: Optional[list] = None
+    """部门ID列表"""
+
+    unionId: Optional[str] = None
+    """unionId"""
 
     def __init__(
             self,
@@ -144,6 +177,7 @@ class Member:
             else:
                 cache.execute("INSERT INTO user_info (`id`,`name`,`staffId`,`unionId`, `info`,`timeStamp`) "
                               "VALUES (?,?,?,?,?,?)", (str(self.id), self.name, self.staffId, '', '{}', time.time()))
+            cache.commit()
 
     def __int__(self) -> int:
         return self.id
