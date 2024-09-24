@@ -15,10 +15,21 @@ def ColoredFormatter(message: str):
     return message
 
 
-s = 0
-for colour in range(256):
-    if s > 16:
-        s = 0
-        print()
-    print(f"\x1b[38;5;{colour}m\u25a0\x1b[0m", end="")
-    s += 1
+def markdown_color_formatter(text, color_map: dict) -> str:
+    for k, v in color_map.items():
+        if not isinstance(v, str):
+            raise ValueError(f"Value of {k} should be a string, but got {type(v)}")
+        if v.startswith("#"):
+            if len(v) != 7:
+                raise ValueError(f"Invalid color code: {v}")
+        else:
+            v = "#" + v.lstrip("#")
+            if len(v) != 7:
+                raise ValueError(f"Invalid color code: {v}")
+        color_map[k] = v
+    color_map = dict(sorted(color_map.items(), key=lambda x: x[0]))
+    for k, v in color_map.items():
+        if text < k:
+            text = f'<font color="{v}">{text}</font>'
+            break
+    return text
