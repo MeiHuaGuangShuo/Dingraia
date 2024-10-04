@@ -1,14 +1,15 @@
-﻿from IPython import embed, get_ipython
+﻿from IPython import embed
 import asyncio
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
-from IPython.terminal.embed import InteractiveShellEmbed
 from aiohttp import ClientSession
 from loguru import logger
 from .message.chain import MessageChain
 from .message.element import *
 from .element import *
+from .model import *
 from .tools import *
 from .DingTalk import Dingtalk
 
@@ -47,10 +48,7 @@ app._loop = loop
 logger.info("Init console...")
 app.prepare()
 pool.submit(start_loop)
-# shell = InteractiveShellEmbed(loop=loop)
-# shell.active_eventloop = loop
 logger.info("Starting Console...")
-# shell(colors='Neutral', using='asyncio')
 embed(colors='Neutral', using='asyncio', loop_runner=loop_runner)
 logger.info("Stopping the loop")
 pool.submit(loop.stop)
