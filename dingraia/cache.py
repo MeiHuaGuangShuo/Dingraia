@@ -1,6 +1,7 @@
 import sqlite3
 import datetime
 from .exceptions import *
+from .log import logger
 from typing import Optional, Union
 from pathlib import Path
 
@@ -27,7 +28,11 @@ class Cache:
 
     def execute(self, command: str, params=tuple(), *, result: bool = False):
         if self.enable:
-            self.cursor.execute(command, params)
+            try:
+                self.cursor.execute(command, params)
+            except Exception as err:
+                logger.error(f"{err.__class__.__name__}: {err} command: {command}, params: {params}")
+                return ()
             if result:
                 return self.cursor.fetchall()
         else:
@@ -117,6 +122,10 @@ class Cache:
             "counts"    : {
                 "type": str,
                 "count": int
+            },
+            "file"      : {
+                "sha256" : str,
+                "mediaId": str,
             }
         }
         for k, v in to_tables.items():
