@@ -33,6 +33,9 @@ class OpenConversationId:
     def __int__(self):
         return self.group_id
 
+    def __bool__(self):
+        return bool(self.openConversationId)
+
 
 class AccessToken:
     token: str
