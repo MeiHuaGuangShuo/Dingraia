@@ -15,8 +15,6 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from .log import logger
 
-from dingraia.tools.debug import delog
-
 
 def decrypt(encrypt_data, aes_key):
     key = base64.b64decode(aes_key + '=')
@@ -55,7 +53,6 @@ def get_sign(secure_key: str):
     sign = hmac.new(secure_key.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha256).digest()
     sign = base64.b64encode(sign)
     sign = urllib.parse.quote_plus(sign)
-    delog.success(f"成功加签", no=40)
     return sign, timestamp
 
 
