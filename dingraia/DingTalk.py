@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import collections
+import datetime
 import functools
 import hmac
 import importlib.metadata
@@ -15,8 +16,8 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from functools import reduce
 from io import BytesIO
-from typing import Any, Coroutine, Dict, TypeVar
-from urllib.parse import urlencode, urljoin, urlparse
+from typing import Any, Coroutine, Dict, Tuple, TypeVar
+from urllib.parse import urlencode, urljoin
 
 import mutagen
 import websockets
@@ -40,7 +41,7 @@ from .module import load_modules
 from .saya import Channel, Saya
 from .signer import decrypt, sign_js
 from .tools import write_temp_file
-from .tools.debug import delog
+from .tools.timer import format_time
 from .vars import *
 from .verify import get_token, url_res
 
@@ -104,12 +105,23 @@ class Dingtalk:
     stream_connect: CustomStreamConnect = None
     """用于自定义Stream连接"""
     message_handle_complete_callback: List[Callable] = []
-    """当收到空消息时的回调"""
+    """当程序在此次消息接收后未发送消息时的回调"""
     send_message_handler: List[Callable] = []
     """发送消息时的回调，可用于检测发送体"""
     http_routes: List[web.RouteDef] = []
     """HTTP路由"""
+    oauth_data: Dict[str, str] = {}
+    """OAuth数据，键为uuid"""
     _running_mode: List[str] = []
+
+    _forbidden_request_method: Literal["none", "return", "raise"] = "none"
+    """是否禁止请求"""
+
+    _protected_route_paths: Dict[str, List[str]] = {
+        "/"                 : ["POST"],
+        "/oauth_login"      : ["GET"],
+        "/login/checkStatus": ["GET"]
+    }
 
     def __init__(self, config: Config = None):
         self._clientSession = None or self._clientSession
@@ -126,14 +138,14 @@ class Dingtalk:
             self.config = Config()
 
     async def send_message(
-            self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], msg,
+            self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], *msg,
             headers=None
     ):
         """发送普通的文本信息
         
         Args:
             target: 要发送的地址，可以是Group, OpenConversationId, str格式的链接, 或者None发送到测试群
-            msg: 要发送的文本
+            msg: 要发送的对象
             headers: 要包含的请求头
 
         Notes:
@@ -149,6 +161,9 @@ class Dingtalk:
             headers = {}
         response = Response()
         response.recallType = f"Unsupported recall target {type(target).__name__}"
+        if isinstance(msg, (list, tuple)):
+            if len(msg) == 1:
+                msg = msg[0]
         if isinstance(target, str):
             if target.startswith('cid'):
                 target = OpenConversationId(target)
@@ -200,7 +215,8 @@ class Dingtalk:
                 }
 
             send_data['robotCode'] = self.config.bot.robotCode
-            if isinstance(target, (Group, Member, OpenConversationId)):
+            target = await self.update_object(target)
+            if isinstance(target, (Group, OpenConversationId)):
                 send_data['openConversationId'] = str(target.openConversationId)
             headers['x-acs-dingtalk-access-token'] = self.access_token
         if isinstance(msg, MessageChain):
@@ -237,25 +253,25 @@ class Dingtalk:
         if not target:
             if not self.config.bot.GroupWebhookSecureKey or not self.config.bot.GroupWebhookAccessToken:
                 raise ConfigError("Not GroupWebhookSecureKey or GroupWebhookAccessToken provided!")
-        target = self.update_object(target)
         if target is None:
             sign = self.get_sign()
             url = send_url.format(sign[2], sign[1], sign[0])
             response.recall_type = "url"
-            self.log.info(f"[SEND] <- {repr(str(msg))[1:-1]}")
+            logger.info(f"[SEND] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
         elif isinstance(target, Group):
             if time.time() < target.webhook.expired_time:
                 url = target.webhook.url
                 response.recall_type = "group webhook"
-                self.log.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}")
+                logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
             else:
-                logger.error("群组的Webhook链接已经过期！请检查来源IP是否正确或服务器时钟是否正确")
-                return [False, -1]
+                logger.warning(
+                    "群组的Webhook链接已经过期！请检查来源IP是否合法、本地时钟是否正确或取消使用缓存。本次将使用API发送")
+                return await self.send_message(target=target.openConversationId, msg=msg, headers=headers)
         elif isinstance(target, Member):
             url = f"https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend"
             headers['x-acs-dingtalk-access-token'] = self.access_token
-            self.log.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}")
-            send_data['userIds'] = [target.staffid]
+            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
+            send_data['userIds'] = [target.staffid or target.staffId]
             send_data['robotCode'] = self.config.bot.robotCode
             response.recallType = "personal"
         elif isinstance(target, Webhook):
@@ -269,11 +285,10 @@ class Dingtalk:
             url = 'https://api.dingtalk.com/v1.0/robot/groupMessages/send'
             response.recallType = "group"
             response.recallOpenConversationId = target
-            self.log.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}")
+            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
         else:
             url = str(target)
-            self.log.info(f"[SEND][WebHook] <- {repr(str(msg))[1:-1]}")
-        delog.info(send_data, no=60)
+            logger.info(f"[SEND][WebHook] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
         if url and "http" not in url:
             logger.error(f"Wrong send url [{url}]!")
             response.ok = False
@@ -297,16 +312,15 @@ class Dingtalk:
                 else:
                     self.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send))
         try:
-            if 'oapi' in url and 'access_token' not in url:
-                resp = await self.api_request.post(url, json=send_data, headers=headers)
-            elif 'api' in url and 'access_token' not in url:
+            if '//oapi' in url and 'access_token' not in url:
+                resp = await self.oapi_request.post(url, json=send_data, headers=headers)
+            elif '//api' in url and 'access_token' not in url:
                 resp = await self.api_request.post(url, json=send_data, headers=headers)
             else:
                 resp = await url_res(url, 'POST', json=send_data, headers=headers, res='raw')
             response.ok = resp.ok
             response.text = await resp.text()
             response.url = url
-            delog.success("发送完成")
         except Exception as err:
             logger.exception(f"发送失败！", err)
             response.ok = False
@@ -315,7 +329,6 @@ class Dingtalk:
             response.recall_type = "Not completed request"
             return response
         else:
-            delog.info(response.text, no=40)
             if not response.ok:
                 try:
                     res = response.json()
@@ -324,7 +337,6 @@ class Dingtalk:
                 except:
                     raise err_reason[-1](response.text)
             else:
-                delog.success(f"Success!", no=40)
                 self._add_message_times(target=target, no_raise=True)
             return response
 
@@ -417,6 +429,37 @@ class Dingtalk:
             return await _run(inThreadTime)
         else:
             return self.loop.create_task(_run(inThreadTime))
+
+    async def send_ding(
+            self,
+            targets: List[Union[Member, str]],
+            content: Union[MessageChain, str],
+            remindType: int = 1,
+    ):
+        """[Dingtalk Pro Only] 通过API发送Ding消息
+
+        Args:
+            targets: 用户列表
+            content: DING 消息
+            remindType: 提醒类型。1为应用内提醒，2为短信提醒，3为电话提醒
+
+        Returns:
+
+        """
+        if not isinstance(targets, list):
+            targets = [targets]
+        temp_targets = []
+        for target in targets:
+            temp_targets.append(self._staffId2str(target))
+        targets = temp_targets
+        data = {
+            "robotCode"         : self.config.bot.robotCode,
+            "remindType"        : remindType,
+            "content"           : str(content),
+            "receiverUserIdList": targets,
+        }
+        res = await self.api_request.post("/v1.0/robot/ding/send", json=data)
+        return res
 
     async def send_card(
             self,
@@ -602,8 +645,8 @@ class Dingtalk:
             templateId: str,
             ownerUserId: str,
             icon: Union[File, str],
-            userIds: list = None,
-            subAdminIds: list = None,
+            userIds: List[Union[Member, str]] = None,
+            subAdminIds: List[Union[Member, str]] = None,
             showHistory=False,
             validation=True,
             searchable=False,
@@ -615,7 +658,7 @@ class Dingtalk:
             userIds = [self._staffId2str(x) for x in userIds]
         if subAdminIds is not None and not isinstance(subAdminIds, list):
             subAdminIds: list = [subAdminIds]
-            subAdminIds = [str(x) for x in subAdminIds]
+            subAdminIds = [self._staffId2str(x) for x in subAdminIds]
         data = {
             "title"                : name,
             "template_id"          : templateId,
@@ -653,7 +696,7 @@ class Dingtalk:
 
     async def get_group(
             self, openConversationId: Union[OpenConversationId, Group, str], access_token: str = None,
-            *, using_cache: bool = False
+            *, using_cache: bool = None
     ):
         """获取场景群信息, `2` API 调用量
         
@@ -666,8 +709,8 @@ class Dingtalk:
 
         """
         openConversationId = self._openConversationId2str(openConversationId)
-        cached = self.get_info(OpenConversationId(openConversationId))
-        if self.is_cache_needed(cached, using_cache=using_cache):
+        cached = await self.get_info(OpenConversationId(openConversationId)) if self.config.useDatabase else []
+        if self.is_cache_needed(cached, using_cache=using_cache or False) and using_cache is not False:
             res = cached[0]
         else:
             if access_token:
@@ -711,7 +754,7 @@ class Dingtalk:
                 cache.commit()
         return res
 
-    async def get_depts(self, deptId: int = 1, access_token: str = None):
+    async def get_depts(self, deptId: Union[int, str] = 1, access_token: str = None):
         """获取指定部门下的所有部门
         
         Args:
@@ -751,7 +794,7 @@ class Dingtalk:
 
     async def get_user(
             self, userStaffId: Union[Member, str], language: str = "zh_CN", access_token: str = None,
-            *, using_cache: bool = False
+            *, using_cache: bool = None
     ):
         """获取用户详细信息
 
@@ -768,8 +811,8 @@ class Dingtalk:
 
         """
         userStaffId = self._staffId2str(userStaffId)
-        cached = self.get_info(Member(staffId=userStaffId))
-        if self.is_cache_needed(cached, using_cache=using_cache):
+        cached = await self.get_info(Member(staffId=userStaffId)) if self.config.useDatabase else []
+        if self.is_cache_needed(cached, using_cache=using_cache or False) and using_cache is not False:
             res = cached[0]
         else:
             if access_token:
@@ -784,14 +827,47 @@ class Dingtalk:
             if self.config.useDatabase:
                 if cache.value_exist("user_info", "staffId", userStaffId):
                     cache.execute(
-                        f"UPDATE user_info SET info=?,timeStamp=? WHERE staffId=?",
-                        (json.dumps(res), time.time(), userStaffId))
+                        f"UPDATE user_info SET name=?,staffId=?,unionId=?,info=?,timeStamp=? WHERE staffId=?",
+                        (res.get('name', ''), userStaffId, res.get('unionid', ''), json.dumps(res), time.time(),
+                         userStaffId))
                 else:
                     cache.execute(
                         f"INSERT INTO user_info (id,name,staffId,unionId,info,timeStamp) VALUES (?,?,?,?,?,?)",
-                        ('', '', userStaffId, '', json.dumps(res), time.time()))
+                        ('', '', userStaffId, res.get('unionid', ''), json.dumps(res), time.time()))
                 cache.commit()
         return res
+
+    async def unionId2staffId(self, unionId: Union[Member, str], using_cache: bool = None) -> str:
+        t_unionId = unionId
+        if isinstance(unionId, Member):
+            t_unionId = Member.unionId
+        c = cache.execute("SELECT * FROM user_info WHERE unionId=?", (t_unionId,),
+                          result=True) if self.config.useDatabase else []
+        if len(c) == 1:
+            c = (c[0][3], c[0][5])
+        if self.is_cache_needed(c, using_cache=using_cache or False) and using_cache is not False:
+            return c[0]
+        else:
+            res = await self.oapi_request.jpost(
+                '/topapi/user/getbyunionid',
+                json={
+                    "unionid": t_unionId
+                }
+            )
+            t_unionId = res['result']['userid']
+            if self.config.useDatabase:
+                if cache.value_exist("user_info", "unionId", t_unionId):
+                    cache.execute(
+                        f"UPDATE user_info SET staffId=? WHERE unionId=?",
+                        (res['result']['userid'], t_unionId))
+                else:
+                    cache.execute(
+                        f"INSERT INTO user_info (id,name,staffId,unionId,info,timeStamp) VALUES (?,?,?,?,?,?)",
+                        ('', '', res['result']['userid'], t_unionId, '{}', time.time()))
+                cache.commit()
+            if isinstance(unionId, Member):
+                unionId.unionId = t_unionId
+            return t_unionId
 
     async def remove_user(self, userStaffId: Union[Member, str], access_token: str = None):
         """从组织中直接移除用户
@@ -964,6 +1040,8 @@ class Dingtalk:
         Returns:
 
         """
+        raise_status = self.config.raise_for_api_error
+        self.config.raise_for_api_error = False
         openConversationId = self._openConversationId2str(openConversationId)
         raw = await self.get_group(openConversationId)
         if raw['title'].endswith('_mirror'):
@@ -973,25 +1051,36 @@ class Dingtalk:
         userIds = raw['user_ids']
         adminUserIds = raw['sub_admin_staff_ids']
         if raw['success']:
-            res = {}
+            res = {"success": False, "result": {}}
             times = 0
             while not res.get("success") and times < 10:
-                rand_owner = random.choice(userIds)
-                res = await self.create_group(
-                    name=title + " - 转生",
-                    templateId=raw['template_id'],
-                    ownerUserId=rand_owner,
-                    icon=raw['icon'],
-                    userIds=rand_owner,
-                    subAdminIds=rand_owner,
-                    showHistory=raw['management_options']['show_history_type'],
-                    validation=raw['management_options']['validation_type'],
-                    searchable=raw['management_options']['searchable']
-                )
-                times += 1
+                try:
+                    rand_owner = random.choice(userIds)
+                    res = await self.create_group(
+                        name=title + " - 转生",
+                        templateId=raw['template_id'],
+                        ownerUserId=rand_owner,
+                        icon=raw['icon'],
+                        userIds=rand_owner,
+                        subAdminIds=rand_owner,
+                        showHistory=raw['management_options']['show_history_type'],
+                        validation=raw['management_options']['validation_type'],
+                        searchable=raw['management_options']['searchable']
+                    )
+                    times += 1
+                except InvalidParameterError:
+                    logger.warning("随机选择群主失败, 重新选择")
+                    times += 1
+                    res = {"success": False, "result": {}}
+            else:
+                if times >= 10:
+                    logger.error("无法找到合适的群主，复制暂停")
+                    self.config.raise_for_api_error = raise_status
+                    return res
             if not res['success']:
                 logger.error(
                     f"Error while creating the new group! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
+                self.config.raise_for_api_error = raise_status
                 return res
             open_conversation_id: dict = res['result']
             open_conversation_id = open_conversation_id['open_conversation_id']
@@ -1004,6 +1093,7 @@ class Dingtalk:
                 await asyncio.sleep(1)
             else:
                 logger.error("获取群信息失败超过 3 次!")
+                self.config.raise_for_api_error = raise_status
                 return {'success': False}
             # invite_url = res['group_url']cidvFgTQiWWMHmvDrnf/ELoVA==
             # await self.send_message(OpenConversationId(openConversationId), MessageChain("新群链接: ", invite_url))
@@ -1018,6 +1108,7 @@ class Dingtalk:
                     f"Error while setting the admin(s)! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
         else:
             res = raw
+        self.config.raise_for_api_error = raise_status
         return res
 
     async def update_group(
@@ -1173,7 +1264,7 @@ class Dingtalk:
             self, openConversationId: Union[OpenConversationId, Group, str],
             memberStaffIds: Union[Member, str, List[Union[Member, str]]]
     ):
-        """从群组中踢出一名成员. 群组必须是场景群
+        """从群组中踢出成员. 群组必须是场景群
         
         Args:
             openConversationId: 群对话ID, 可以是OpenConversationId或Group对象
@@ -1194,7 +1285,7 @@ class Dingtalk:
             self, openConversationId: Union[OpenConversationId, Group, str],
             memberStaffIds: Union[Member, str, List[Union[Member, str]]]
     ):
-        """添加一个成员到群组. 群组必须是场景群
+        """添加成员到群组. 群组必须是场景群
         
         Args:
             openConversationId: 群对话ID, 可以是OpenConversationId或Group对象
@@ -1215,7 +1306,7 @@ class Dingtalk:
             self, openConversationId: Union[OpenConversationId, Group, str],
             memberStaffIds: Union[Member, str, List[Union[Member, str]]], set_admin: bool = True
     ):
-        """设置一个成员是否为管理员. 群组必须是场景群
+        """设置成员是否为管理员. 群组必须是场景群
         
         Args:
             openConversationId: 群对话ID, 可以是OpenConversationId或Group对象
@@ -1238,7 +1329,7 @@ class Dingtalk:
             memberStaffIds: Union[Member, str, List[Union[Member, str]]],
             muteTime: int = 0
     ):
-        """禁言一个成员
+        """禁言成员
         
         Args:
             openConversationId: 群对话ID, 可以是OpenConversationId或Group对象
@@ -1271,25 +1362,64 @@ class Dingtalk:
     async def login_handler(request: web.Request):
         data = request.query
 
+    async def get_user_access_token(self, oauthCode: Union[AccessToken, str], isRefreshCode: bool = False):
+        """
+
+        Args:
+            oauthCode:
+            isRefreshCode:
+
+        Returns:
+
+        """
+        if isinstance(oauthCode, AccessToken):
+            if not oauthCode.ok:
+                raise ValueError(
+                    f"{'RefreshToken' if isRefreshCode else 'OauthCode'} was expired at {oauthCode.expired}")
+            oauthCode = oauthCode.token
+        res = await self.api_request.jpost("/v1.0/oauth2/userAccessToken", json={
+            "clientId"                                    : self.config.bot.appKey,
+            "clientSecret"                                : self.config.bot.appSecret,
+            ("refresh_token" if isRefreshCode else "code"): oauthCode,
+            "grantType"                                   : "refresh_token" if isRefreshCode else "authorization_code"
+        })
+        return (AccessToken(res['accessToken'], res['expireIn']),
+                AccessToken(res['refreshToken'], res['expireIn'] + 30 * Day))
+
     @staticmethod
     async def check_login_status(request: web.Request):
         data = request.query
         if 'authCode' in data:  # Success
             code = data['authCode']
-            if 'redict' in data:
-                target_url = data['redict']
-                target_url.replace("\\", '/')
-                if not urlparse(target_url).netloc:
-                    return web.HTTPFound(target_url)
-                return web.Response(body="Invalid redict url", status=400)
+            return web.Response(body=f"Auth Success. Code: {code}", status=400)
         else:
-            ...
+            return web.Response(body="Auth Failed.", status=401)
 
-    async def get_login_url(self, redirect_url: str = None, exclusiveLogin: bool = False):
+    async def oauth_login(self, request: web.Request):
+        request_id = str(uuid.uuid1())
+        return web.HTTPFound(await self.get_login_url(state=request_id))
+
+    async def get_login_url(
+            self,
+            redirect_url: str = None,
+            state: str = str(uuid.uuid1()),
+            exclusiveLogin: bool = False
+    ) -> str:
+        """
+
+        Args:
+            redirect_url: 回调网址
+            state: 唯一请求识别码
+            exclusiveLogin: 是否专属帐号登录
+
+        Returns:
+
+        """
         if redirect_url is None:
             if not self.HOST:
                 raise ValueError("Host muse be specific")
-            redirect_url = urljoin(self.HOST, f"/login/checkStatus")
+            redirect_url = urljoin(self.HOST, f"./login/checkStatus")
+            logger.debug(f"Host: {self.HOST}, redirect_url: {redirect_url}")
         url = f"https://login.dingtalk.com/oauth2/auth"
         data = {
             "redirect_uri" : redirect_url,
@@ -1297,13 +1427,16 @@ class Dingtalk:
             "client_id"    : self.config.bot.appKey,
             "scope"        : "openid corpid",
             "prompt"       : "consent",
-            "corpId"       : self.config.bot.appKey
+            "corpId": self.config.bot.appKey,
+            "state" : state
         }
         if exclusiveLogin:
             data["exclusiveLogin"] = True
             data["exclusiveCorpId"] = self.config.bot.appKey
         query_string = urlencode(data)
-        return urljoin(url, '?' + query_string)
+        url = urljoin(url, '?' + query_string)
+        logger.debug(url)
+        return url
 
     # async def
 
@@ -1457,7 +1590,11 @@ class Dingtalk:
         f.seek(0)
         if is_debug:
             logger.debug(f"File hash: {file_hash}")
-        if file_hash not in self.media_id_cache.keys():
+        if self.config.useDatabase:
+            cache_exist = cache.value_exist("file", "sha256", file_hash)
+        else:
+            cache_exist = file_hash in self.media_id_cache.keys()
+        if not cache_exist:
             if isinstance(file, Audio):
                 mediaFile = mutagen.File(file.file)
                 file_length = mediaFile.info.length
@@ -1483,12 +1620,22 @@ class Dingtalk:
             if res_json.get("errcode"):
                 raise err_reason[res_json.get("errcode")](res_json)
             res.mediaId = res_json['media_id']
-            self.media_id_cache[file_hash] = res
+            if self.config.useDatabase:
+                cache.execute(
+                    "INSERT INTO file (sha256, mediaId) VALUES (?,?)",
+                    (file_hash, res.mediaId)
+                )
+                cache.commit()
+            else:
+                self.media_id_cache[file_hash] = res.mediaId
         else:
             if is_debug:
-                logger.debug(f"Using cached MediaID for {file_hash} -> {self.media_id_cache[file_hash]}")
-            res = self.media_id_cache[file_hash]
-
+                logger.debug(f"Using cached MediaID for {file_hash}")
+            if self.config.useDatabase:
+                c = cache.execute("SELECT * FROM file WHERE sha256=?", (file_hash,), result=True)
+                res.mediaId = c[0][1]
+            else:
+                res.mediaId = self.media_id_cache[file_hash]
         return res
 
     async def download_file(self, downloadCode: Union[File, str], path: Union[Path, str]):
@@ -1575,7 +1722,6 @@ class Dingtalk:
 
     @logger.catch
     async def bcc(self, data: dict):
-        delog.info(json.dumps(data, indent=2, ensure_ascii=False), no=50)
         _e = await self.disPackage(data)
         if _e.get('success'):
             _e['send_data'].append(self)
@@ -1643,9 +1789,9 @@ class Dingtalk:
                 else:
                     mes = "Unknown Message"
                     message = MessageChain(mes)
-                # logger.info(at_users)
                 message.trace_id = traceId
-                self.log.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}")
+                logger.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}",
+                            _inspect=['', '', ''])
                 event = MessageEvent(data.get('msgtype'), data.get('msgId'), data.get('isInAtList'), message, group,
                                      member)
                 if traceId not in self.message_trace_id:
@@ -1943,23 +2089,29 @@ class Dingtalk:
             except Exception as e:
                 logger.exception(f"在处理 {response.url} 的返回时发生异常。返回体: {await response.text()}", e)
 
-    def start(self, port: int = None, routes: List[web.RouteDef] = None):
+    def start(self, port: int = None, routes: List[web.RouteDef] = None, host: str = None):
         """
 
         Args:
             port: 启动端口
             routes: 路由列表
+            host: 入口地址 (如果要使用认证登陆则需要填写)
 
         Returns:
             None
 
         """
-        asyncio.run(self._start(port=port, routes=routes))
+        asyncio.run(self._start(port=port, routes=routes, host=host))
         logger.info("Exited.")
 
-    async def _start(self, port: int = None, routes: List[web.RouteDef] = None):
+    async def _start(self, port: int = None, routes: List[web.RouteDef] = None, host: str = None):
+        self.http_routes += [
+            web.get("/login/checkStatus", self.check_login_status),
+            web.get("/oauth_login", self.oauth_login)
+        ]
         if routes is None:
             routes = []
+        self.HOST = host
         for r in routes + self.http_routes:
             if r.method == "POST" and r.path == "/":
                 raise ValueError(f"请不要在路由列表中添加根路径的POST路由: {r.path} -> {r.handler.__name__}")
@@ -1982,20 +2134,30 @@ class Dingtalk:
         self.api_request = self._api_request(self.clientSession, self)
         self.oapi_request = self._oapi_request(self.clientSession, self)
         load_modules()
+
+        async def default_page(_) -> web.Response:
+            return web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html')
+
+        @logger.catch
+        async def receive_data(request: web.Request):
+            if "{" not in await request.text():
+                return web.Response(text="Invalid request body", status=400)
+            res = await self.bcc(await request.json())
+            if res:
+                if isinstance(res, dict):
+                    return web.json_response(res)
+                else:
+                    return web.Response(body=res)
+
+        all_routes = [
+                         web.post('/', receive_data),
+                         web.get('/', default_page)
+                     ] + routes + self.http_routes
+        self._check_route_conflict(all_routes)
         await channel.radio(LoadComplete, self, async_await=True)
         logger.info("Load complete.")
         if port:
-
-            @logger.catch
-            async def receive_data(request: web.Request):
-                if "{" not in await request.text():
-                    return web.Response(text="Invalid request body", status=400)
-                res = await self.bcc(await request.json())
-                if res:
-                    if isinstance(res, dict):
-                        return web.json_response(res)
-                    else:
-                        return web.Response(body=res)
+            self._running_mode.append("HTTP")
 
             async def access_logger(_, handler):
                 async def server_log(request: web.Request):
@@ -2006,22 +2168,36 @@ class Dingtalk:
                     if is_debug:
                         check_ua = await self.ua_checker(ua, 'all')
                     else:
-                        check_ua = await self.ua_checker(ua, 'dingtalk-user')
+                        # check_ua = await self.ua_checker(ua, 'dingtalk-user')
+                        check_ua = await self.ua_checker(ua, 'all')
                     if check_ua is not None:
                         logger.warning(
                             f"{clientIp} {request.method} {req_path} {http_version} "
                             f"{check_ua.status} {repr(ua)} Denied")
                         return check_ua
-                    # 记录访问日志
+                    handle_start_time = time.perf_counter()
                     try:
                         response = await handler(request)
-                        logger.info(f"{clientIp} {request.method} {response.status} {req_path} {http_version} "
-                                    f"{request.content_length + response.content_length} {repr(ua)}")
-                        return response
+                        handle_time = time.perf_counter() - handle_start_time
+                        if isinstance(response, web.Response):
+                            if response.status < 400:
+                                logger.info(f"{clientIp} {request.method} {response.status} {req_path} {http_version} "
+                                            f"{(request.content_length or 0) + (response.content_length or 0)} "
+                                            f"{repr(ua)} {format_time(handle_time)}")
+                            else:
+                                logger.error(f"{clientIp} {request.method} {response.status} {req_path} {http_version} "
+                                             f"{(request.content_length or 0) + (response.content_length or 0)} "
+                                             f"{repr(ua)} {format_time(handle_time)}")
+                            return response
+                        logger.error(
+                            f"{clientIp} {request.method} 500 {req_path} {http_version} "
+                            f"Invalid response type: {type(response).__name__} {repr(ua)} {format_time(handle_time)}")
+                        return web.Response(status=500)
                     except web.HTTPException as http_err:
+                        handle_time = time.perf_counter() - handle_start_time
                         logger.error(
                             f"{clientIp} {request.method} {req_path} {http_version} "
-                            f"{http_err.status_code} {http_err.reason} \"{ua}\"")
+                            f"{http_err.status_code} {http_err.reason} \"{ua}\" {format_time(handle_time)}")
                         if http_err.status_code == 404:
                             return web.Response(text=HTTP_404_PAGE, content_type='text/html')
                         elif http_err.status_code == 405:
@@ -2030,30 +2206,24 @@ class Dingtalk:
                             return web.Response(text=HTTP_500_PAGE, content_type='text/html')
                         return web.Response(status=http_err.status_code)
                     except Exception as err:
-                        logger.error(
+                        handle_time = time.perf_counter() - handle_start_time
+                        logger.exception(
                             f"{clientIp} {request.method} 500 {req_path} {http_version} "
-                            f"{err.__class__.__name__}: {err} {repr(ua)}")
+                            f"{err.__class__.__name__}: {err} {repr(ua)} {format_time(handle_time)}")
                         return web.Response(status=500)
 
                 return server_log
-
-            async def default_page(_) -> web.Response:
-                return web.Response(text=HTTP_DEFAULT_PAGE, content_type='text/html')
 
             async def start_server():
                 request_handler = [access_logger] + (
                     self.config.webRequestHandlers if isinstance(self.config, Config) else []
                 )
                 app = web.Application(middlewares=request_handler)
-                app.add_routes([
-                                   web.post('/', receive_data),
-                                   web.get('/', default_page)
-                               ] + routes + self.http_routes)
+                app.add_routes(all_routes)
                 runner = web.AppRunner(app)
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
                 await site.start()
-                self._running_mode.append("HTTP")
                 logger.info(f"Started at 0.0.0.0:{port}")
 
             self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
@@ -2064,11 +2234,12 @@ class Dingtalk:
         async def keep_running():
             try:
                 while True:
-                    await asyncio.sleep(600)
+                    await asyncio.sleep(1)
             except asyncio.CancelledError:
                 return
 
-        self.create_task(keep_running(), show_info=False)
+        if self.running_mode == "HTTP":
+            self.create_task(keep_running(), show_info=False)
         await asyncio.gather(*self.async_tasks)
 
     class _prepare:
@@ -2077,6 +2248,9 @@ class Dingtalk:
             self.app = app
 
         def set(self):
+            if not self.app._loop:
+                self.app._loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self.app._loop)
             self.app._clientSession = ClientSession()
             if self.app.config:
                 if self.app.config.bot:
@@ -2139,7 +2313,8 @@ class Dingtalk:
             announcement = "Announcements:\n" + ANNOUNCEMENT
         if is_debug:
             DEBUG = "<yellow>Warning</>: <red>Debug mode is on!</>\n"
-        logger.opt(colors=True).info("\n" * 2 + __topic + DINGRAIA_ASCII + f"{ver}\n\n" + announcement + "\n" + DEBUG)
+        logger.info(
+            "<-Dingraia-Color-Enable->" + "\n" * 2 + __topic + DINGRAIA_ASCII + f"{ver}\n\n" + announcement + "\n" + DEBUG)
 
     def _create_stream(self, stream: Stream):
         """创建并开始一个异步Stream任务. 不推荐自行调用
@@ -2168,6 +2343,9 @@ class Dingtalk:
             request_headers = {
                 'User-Agent': f'Dingraia/{VERSION} (+https://github.com/MeiHuaGuangShuo/Dingraia)'
             }
+            if isinstance(self.stream_connect, CustomStreamConnect):
+                if self.stream_connect.ExtraHeaders:
+                    request_headers.update(self.stream_connect.ExtraHeaders)
             request_body = {
                 'clientId'     : stream.AppKey,
                 'clientSecret' : stream.AppSecret,
@@ -2268,7 +2446,11 @@ class Dingtalk:
                     if self.stream_connect.SignHandler:
                         try:
                             if inspect.iscoroutinefunction(self.stream_connect.SignHandler):
-                                connection = await self.stream_connect.SignHandler(key, secret)
+                                if isinstance(self.stream_connect.SignHandler, str):
+                                    connection = {"endpoint": "Pass", "ticket": "Pass"}
+                                    # 你问我为什么要加上这句看起来没什么用的代码？因为我的IDE抽风识别不了这是异步函数一直报Warning
+                                else:
+                                    connection = await self.stream_connect.SignHandler(key, secret)
                             elif inspect.isfunction(self.stream_connect.SignHandler):
                                 connection = self.stream_connect.SignHandler(key, secret)
                             elif isinstance(self.stream_connect.SignHandler, str):
@@ -2277,8 +2459,8 @@ class Dingtalk:
                                 connection = await open_connection(task_name, self.stream_connect.SignHandler)
                             else:
                                 raise ValueError(f"Incorrect signer param, consider use None to skip sign")
-                        except Exception as err:
-                            logger.exception(err)
+                        except:
+                            logger.exception("Error while signing the connection")
                             logger.warning("Please restart the program to retry.")
                             return
                     else:
@@ -2383,9 +2565,6 @@ class Dingtalk:
             logger.warning(f"User forced to quit")
             sys.exit(1)
         logger.warning(f"Ctrl-C triggered.")
-        if self.running_mode == "HTTP":
-            logger.warning("In HTTP mode, you may need to press Ctrl-C again to stop the program.")
-        # TODO 解决单 HTTP 模式下无法退出的问题
         exit_signal = True
         self._loop.create_task(self.stop())
 
@@ -2399,13 +2578,14 @@ class Dingtalk:
         if tasks:
             logger.info(f"Cancelling async task{'s' if len(tasks) > 1 else ''}: [{names}]")
             for task in tasks:
-                is_cancelled = task.cancel()
-                name = task.get_name()
-                if task in self.async_tasks:
-                    if not is_cancelled:
-                        logger.error(f"Task [{name}] canceled failed!")
-                    else:
-                        logger.success(f"Task [{name}] canceled successfully")
+                if not task.done():
+                    is_cancelled = task.cancel()
+                    name = task.get_name()
+                    if task in self.async_tasks:
+                        if not is_cancelled:
+                            logger.error(f"Task [{name}] canceled failed!")
+                        else:
+                            logger.success(f"Task [{name}] canceled successfully")
         logger.success("Async tasks stopped successfully")
 
     async def coroutine_watcher(self, function, *args, **kwargs):
@@ -2481,12 +2661,12 @@ class Dingtalk:
             return True
         return False
 
-    @staticmethod
-    def get_info(target: Union[OpenConversationId, Group, Member, int, str]):
-        """从缓存中读取数据
+    async def get_info(self, target: Union[OpenConversationId, Group, Member, int, str], force_to_update: bool = False):
+        """先从缓存中读取数据，如果缓存中没有数据，则从API获取数据并更新缓存
 
         Args:
             target:
+            force_to_update:
 
         Returns:
 
@@ -2507,6 +2687,8 @@ class Dingtalk:
         if isinstance(target, OpenConversationId):
             target = target.openConversationId
             res = cache.execute(f"SELECT * FROM `group_info` WHERE `openConversationId`=?", (target,), result=True)
+            if not res and force_to_update:
+                res = ((await self.get_group(target, using_cache=False)), time.time())
             if res:
                 if res[0]:
                     main_info = json.loads(res[0][4])
@@ -2516,6 +2698,7 @@ class Dingtalk:
                         "openConversationId": res[0][2],
                         "name"              : res[0][3],
                         "timeStamp"         : res[0][5],
+                        "strfTimeStamp": datetime.datetime.fromtimestamp(res[0][5]).strftime('%Y-%m-%d %H:%M:%S')
                     }
                     return main_info, res[0][5]
             return {}, 0
@@ -2523,6 +2706,12 @@ class Dingtalk:
             if target.id:
                 target = target.id
                 res = cache.execute(f"SELECT * FROM `group_info` WHERE `id`=?", (target,), result=True)
+                if not res:
+                    if force_to_update:
+                        raise ValueError(f"Group that only have id can't be updated without existed cache.")
+                else:
+                    if force_to_update:
+                        res[0][4] = await self.get_group(res[0])
             elif target.openConversationId:
                 res = cache.execute(
                     f"SELECT * FROM `group_info` WHERE `openConversationId`=?", (target.openConversationId,),
@@ -2538,21 +2727,39 @@ class Dingtalk:
                         "openConversationId": res[0][2],
                         "name"              : res[0][3],
                         "timeStamp"         : res[0][5],
+                        "strfTimeStamp": datetime.datetime.fromtimestamp(res[0][5]).strftime('%Y-%m-%d %H:%M:%S')
                     }
                     return main_info, res[0][5]
             return {}, 0
         elif isinstance(target, Member):
-            target = target.staffId
-            res = cache.execute(f"SELECT * FROM `user_info` WHERE `staffId`=?", (target,), result=True)
+            if target.staffId or target.staffid:
+                target = target.staffId or target.staffid
+                target = str(target)
+                if force_to_update:
+                    await self.get_user(target, using_cache=False)
+                res = cache.execute(f"SELECT * FROM `user_info` WHERE `staffId`=?", (target,), result=True)
+            elif target.id:
+                target = target.id
+                if force_to_update:
+                    await self.get_user(target, using_cache=False)
+                res = cache.execute(f"SELECT * FROM `user_info` WHERE `id`=?", (target,), result=True)
+            elif target.unionId:
+                target = str(target.unionId)
+                if force_to_update:
+                    await self.get_user(target, using_cache=False)
+                res = cache.execute(f"SELECT * FROM `user_info` WHERE `unionId`=?", (target,), result=True)
+            else:
+                raise ValueError(f"Empty staffId or id: {target}")
             if res:
                 if res[0]:
                     main_info = json.loads(res[0][4])
                     main_info["dingraia_cache"] = {
-                        "id"       : res[0][0],
-                        "name"     : res[0][1],
-                        "staffId"  : res[0][2],
-                        "unionId"  : res[0][3],
-                        "timeStamp": res[0][5],
+                        "id"           : res[0][0],
+                        "name"         : res[0][1],
+                        "staffId"      : res[0][2],
+                        "unionId"      : res[0][3],
+                        "timeStamp"    : res[0][5],
+                        "strfTimeStamp": datetime.datetime.fromtimestamp(res[0][5]).strftime('%Y-%m-%d %H:%M:%S')
                     }
                     return main_info, res[0][5]
             return {}, 0
@@ -2590,6 +2797,8 @@ class Dingtalk:
             bool: 是否可以使用缓存数据
 
         """
+        if not cached_obj:
+            return False
         if using_cache:
             if cached_obj[0]:
                 if len(cached_obj[0]) > 1:
@@ -2607,7 +2816,7 @@ class Dingtalk:
     @staticmethod
     def _staffId2str(staffId: Union[Member, str]) -> str:
         if isinstance(staffId, Member):
-            staffId = staffId.staffid
+            staffId = staffId.staffId
         staffId = str(staffId)
         return staffId
 
@@ -2621,7 +2830,7 @@ class Dingtalk:
             staffId = [str(staffId)]
         return staffId
 
-    def update_object(self, obj: Union[Group, Member, OpenConversationId]):
+    async def update_object(self, obj: Union[Group, Member, OpenConversationId, Any]):
         """从缓存中更新数据
 
         Args:
@@ -2630,26 +2839,75 @@ class Dingtalk:
         Returns:
 
         """
+        if not self.config.useDatabase:
+            return obj
         if isinstance(obj, Group):
-            c = self.get_info(obj)
+            c = await self.get_info(obj)
             if c[0]:
-                if not obj.name:
-                    if c[0].get("title"):
-                        obj.name = c[0].get('title')
+                if not obj.name or obj.name == "Unknown":
+                    if c[0].get('dingraia_cache', {}).get("name"):
+                        obj.name = c[0].get('dingraia_cache', {}).get('name')
+                if not obj.id:
+                    if c[0].get('dingraia_cache', {}).get('id'):
+                        obj.id = c[0].get('dingraia_cache', {}).get('id')
+                if not obj.openConversationId:
+                    if c[0].get('dingraia_cache', {}).get('openConversationId'):
+                        obj.openConversationId = OpenConversationId(
+                            c[0].get('dingraia_cache', {}).get('openConversationId'))
+                if not obj.webhook:
+                    res = cache.execute("SELECT * FROM `webhooks` WHERE `openConversationId`=?",
+                                        (str(obj.openConversationId),), result=True)
+                    if res:
+                        obj.webhook = Webhook(res[0][2], res[0][3])
         elif isinstance(obj, Member):
-            c = self.get_info(obj)
+            c = await self.get_info(obj)
             if c[0]:
                 if not obj.name:
-                    if c[0].get("name"):
-                        obj.name = c[0].get('name')
+                    if c[0].get('dingraia_cache', {}).get("name"):
+                        obj.name = c[0].get('dingraia_cache', {}).get('name')
+                if not obj.staffId and not obj.staffId:
+                    if c[0].get('dingraia_cache', {}).get('staffId'):
+                        obj.staffId = obj.staffid = c[0].get('dingraia_cache', {}).get('staffId')
+                if not obj.id:
+                    if c[0].get('dingraia_cache', {}).get('id'):
+                        obj.id = c[0].get('dingraia_cache', {}).get('id')
+                if not obj.unionId:
+                    if c[0].get('dingraia_cache', {}).get('unionId'):
+                        obj.unionId = c[0].get('dingraia_cache', {}).get('unionId')
+                if len(c[0].keys()) > 1:
+                    if not obj.avatar:
+                        if c[0].get('avatar'):
+                            obj.avatar = c[0].get('avatar')
+                    if not obj.mobile:
+                        if c[0].get('mobile'):
+                            obj.mobile = c[0].get('mobile')
+                    if not obj.stateCode:
+                        if c[0].get('state_code'):
+                            obj.stateCode = c[0].get('state_code')
+                    if obj.isHideMobile is None:
+                        if c[0].get('hide_mobile'):
+                            obj.isHideMobile = c[0].get('hide_mobile')
+                    if obj.isRealAuthed is None:
+                        if c[0].get('real_authed'):
+                            obj.isRealAuthed = c[0].get('real_authed')
+                    if obj.isSenior is None:
+                        if c[0].get('senior'):
+                            obj.isSenior = c[0].get('senior')
+                    if obj.isBoss is None:
+                        if c[0].get('boss'):
+                            obj.isBoss = c[0].get('boss')
+                    if obj.deptIdList is None:
+                        if c[0].get('dept_id_list'):
+                            obj.deptIdList = c[0].get('dept_id_list')
         elif isinstance(obj, OpenConversationId):
-            c = self.get_info(obj)
+            c = await self.get_info(obj)
             if c[0]:
                 if not obj.name or obj.name == "未知会话":
-                    if c[0].get("title"):
-                        obj.name = c[0].get('title')
-        else:
-            raise ValueError(f"Invalid object type: {type(obj)}")
+                    if c[0].get('dingraia_cache', {}).get("name"):
+                        obj.name = c[0].get('dingraia_cache', {}).get('name')
+                if not obj.group_id:
+                    if c[0].get('dingraia_cache', {}).get('id'):
+                        obj.group_id = c[0].get('dingraia_cache', {}).get('id')
         return obj
 
     async def _file2mediaId(self, file: Union[File, str]) -> str:
@@ -2662,11 +2920,61 @@ class Dingtalk:
                 file = await self.upload_file(file)
                 file = file.mediaId
             else:
-                if not file.startswith("@"):
+                if not file.startswith("@") and not file.startswith("$"):
                     raise ValueError(f"File {file} is not a valid value!")
         else:
             raise ValueError(f"File type {type(file)} is not a valid type!")
         return file
+
+    def _check_routes(self, routes: List[web.RouteDef]):
+        for route in routes:
+            if not isinstance(route, web.RouteDef):
+                raise ValueError(f"Invalid route type: {repr(route)}[{type(route)}]")
+            if route.path in self._protected_route_paths.keys():
+                if route.method in self._protected_route_paths[route.path]:
+                    raise ValueError(f"Route {route.path} is protected, method {route.method} is not allowed!")
+
+    @staticmethod
+    def _check_route_conflict(routes: List[web.RouteDef]):
+        all_routes: Dict[Tuple, web.RouteDef] = {}
+        conflicts = []  # 用于存储冲突信息
+
+        for route in routes:
+            if not isinstance(route, web.RouteDef):
+                raise ValueError(f"Invalid route type: {repr(route)}[{type(route)}]")
+            route_key = (route.path, route.method)
+            if route_key in all_routes:
+                conflicts.append({
+                    'path'                : route.path,
+                    'method'              : route.method,
+                    'conflicting_function': all_routes[route_key].handler,
+                    'function'            : route.handler,
+                })
+            else:
+                all_routes[route_key] = route
+        if conflicts:
+            for conflict in conflicts:
+                c_f = conflict['conflicting_function']
+                c_f_file = inspect.getfile(c_f)
+                c_f_line = inspect.getsourcelines(c_f)[1]
+                c_f_name = c_f.__name__
+                f = conflict['function']
+                f_file = inspect.getfile(f)
+                f_line = inspect.getsourcelines(f)[1]
+                f_name = f.__name__
+                logger.warning(
+                    logger.color_enable_sign +
+                    f"Conflicted Route: [{conflict['method']}]'{conflict['path']}', "
+                    f"Function: <green>{f_name}</> at file: {f_file}:{f_line} "
+                    f"<- <red>{c_f_name}</> at file: {c_f_file}:{c_f_line}"
+                )
+            raise ValueError("存在路由冲突，请检查上述路径和方法！")
+        if is_debug:
+            logger.info("\nAll HTTP routes:\n" + '\n'.join([
+                f"{k[1]:<6}:{k[0]} -> {v.handler.__name__} at file: {inspect.getfile(v.handler)}, "
+                f"line: {inspect.getsourcelines(v.handler)[1]}"
+                for k, v in all_routes.items()
+            ]))
 
 
 exit_signal = False
