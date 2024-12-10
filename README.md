@@ -111,7 +111,8 @@ At可以传入Member实例（仅限企业内部机器人）与手机号，会自
 
 把导入的模块相应地替换成Dingraia中的模块即可。
 
-查看 [GitBook文档](https://dingraia.gitbook.io/dingraia)
+查看 [Read the Docs文档](https://dingraia.readthedocs.io/zh-cn/latest/)
+  - 涵盖 90% DingTalk.py
 
 ## 示例程序
 
