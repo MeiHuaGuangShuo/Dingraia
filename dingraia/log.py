@@ -9,6 +9,7 @@ from loguru._logger import Core as _Core
 import inspect
 import sys
 from copy import copy
+from .i18n import i18n
 
 
 def logger_filter(record):
@@ -119,7 +120,7 @@ class _Logger(Logger):
         index = self.current_logger_index()
         _message = str(_message)
         if _message.startswith(self.color_enable_sign):
-            _message = _message.replace("<-Dingraia-Color-Enable->", "")
+            _message = _message.replace(self.color_enable_sign, "")
         else:
             _message = _message.replace("<>", "\\<>")
             _message = re.sub(pat, lambda match: match.group(0).replace('<', '\\<'), _message)
@@ -181,6 +182,29 @@ class _Logger(Logger):
 
     def exception(self, __message, *args, **kwargs):
         _raw_logger.exception(__message, *args, **kwargs)
+
+    def catch(
+            self,
+            exception=Exception,
+            *,
+            level="ERROR",
+            reraise=False,
+            onerror=None,
+            exclude=None,
+            default=None,
+            message=None
+    ):
+        if message is None:
+            message = i18n.LoggerExceptionCatchText
+        return _raw_logger.catch(
+            exception=exception,
+            level=level,
+            reraise=reraise,
+            onerror=onerror,
+            exclude=exclude,
+            default=default,
+            message=message,
+        )
 
 
 logger = _Logger(
