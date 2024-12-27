@@ -4,7 +4,7 @@ import urllib.request
 from collections import OrderedDict
 from .exceptions import DingtalkAPIError
 from .cache import cache
-from typing import Optional
+from typing import Literal, Optional
 
 
 class OpenConversationId:
@@ -40,14 +40,27 @@ class OpenConversationId:
 class AccessToken:
     token: str
 
+    typ: Literal["AccessToken", "userAccessToken", "RefreshToken"]
+
+    refreshToken: "AccessToken"
+
     expired: int = 0
 
-    def __init__(self, accessToken: str = None, expireTime: int = 0, *, AppKey: str = None, AppSecret: str = None):
+    def __init__(
+            self,
+            accessToken: str = None,
+            expireTime: int = 0,
+            *,
+            AppKey: str = None,
+            AppSecret: str = None,
+            typ: Literal["AccessToken", "userAccessToken", "RefreshToken"] = "AccessToken"
+    ):
         if not accessToken and (not AppKey or not AppSecret):
             raise ValueError
         self.token = accessToken
         self.appKey = AppKey
         self.appSecret = AppSecret
+        self.typ = typ
         if self.token:
             self.expired = expireTime if expireTime > 1600000000 else int(time.time()) + expireTime
         # else:
@@ -207,6 +220,7 @@ class EasyDict(dict):
         return res
 
     def __getitem__(self, item):
+        oItem = item
         if item not in self.keys() and not self.capitalize and isinstance(item, str):
             if len(item) == 1:
                 if self.no_raise:
@@ -219,7 +233,7 @@ class EasyDict(dict):
             if item not in self.keys():
                 if self.no_raise:
                     return None
-                raise KeyError(item[0].lower() + item[1:] if item[0].isupper() else item[0].upper() + item[1:])
+                raise KeyError(oItem)
             return self.get(item)
         else:
             return self.get(item)
