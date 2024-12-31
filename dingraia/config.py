@@ -2,6 +2,7 @@ from typing import Awaitable, Dict, List, Union, Callable, Coroutine, Any, Optio
 from aiohttp.web import Request
 from aiohttp.web_response import StreamResponse
 from .element import AppKey, AppSecret, EndPoint, Ticket
+from .i18n import i18n
 
 
 class Bot:
@@ -72,6 +73,22 @@ Handler = Callable[[Request], Awaitable[StreamResponse]]
 Middleware = Callable[[Request, Handler], Awaitable[StreamResponse]]
 
 
+class DataCacheTime:
+
+    def __init__(
+            self,
+            dataCacheTime: int = 3600,
+            *,
+            userInfoCacheTime: int = None,
+            groupInfoCacheTime: int = None,
+            userUnionIdConventCacheTime: int = 410281690,
+    ):
+        self.dataCacheTime = dataCacheTime
+        self.userInfoCacheTime = userInfoCacheTime or dataCacheTime
+        self.groupInfoCacheTime = groupInfoCacheTime or dataCacheTime
+        self.userUnionIdConventCacheTime = userUnionIdConventCacheTime
+
+
 class Config:
 
     def __init__(
@@ -83,9 +100,10 @@ class Config:
             customStreamConnect: CustomStreamConnect = None,
             autoBotConfig: bool = True,
             useDatabase: bool = True,
-            dataCacheTime: float = 3600,
+            dataCacheTime: DataCacheTime = None,
             webRequestHandlers: List[Middleware] = None,
             raise_for_api_error: bool = True,
+            language: str = None,
     ):
         """初始化Config
         
@@ -101,7 +119,7 @@ class Config:
         """
         self.raise_for_api_error = raise_for_api_error
         self.useDatabase = useDatabase
-        self.dataCacheTime = dataCacheTime
+        self.dataCacheTime = dataCacheTime or DataCacheTime()
         self.event_callback = event_callback
         self.customStreamConnect = customStreamConnect
         self.bot: Optional[Bot] = bot
@@ -112,5 +130,7 @@ class Config:
                 self.stream = [self.stream]
             else:
                 self.stream = []
+        if language:
+            i18n.setLang(language)
         if len(self.stream) == 1 and autoBotConfig:
             self.bot = Bot(stream[0].AppKey, stream[0].AppSecret, stream[0].AppKey)
