@@ -1,8 +1,12 @@
+import json
 from pathlib import Path
 from uuid import uuid1
 from io import BytesIO, BufferedReader
 from contextlib import contextmanager
-from typing import AsyncGenerator, Union
+from typing import AsyncGenerator, Callable, Optional, Union
+from dingraia.log import logger
+
+import aiohttp
 
 
 def ColoredFormatter(message: str):
@@ -81,3 +85,63 @@ async def asyncGenerator2list(asyncGenerator: AsyncGenerator) -> list:
 
     """
     return [i async for i in asyncGenerator]
+
+
+async def streamProcessor(
+        response: aiohttp.ClientResponse,
+        data_handler: Optional[Callable] = None,
+        line_prefix: str = "data:"
+) -> AsyncGenerator[Union[str, dict], None]:
+    """
+    流式处理 HTTP 响应数据，将数据按行切分，并处理每行数据，返回处理后的结果（可选）
+    Args:
+        response: aiohttp.ClientResponse对象
+        data_handler: 数据处理函数，接收json字符串，返回处理后的结果，留空则不处理直接返回dict对象
+        line_prefix: 数据行前缀，默认"data:"
+
+    Returns:
+        AsyncGenerator[Union[str, dict], None]: 处理后的结果
+
+    """
+    buffer = ""
+    async for chunk in response.content.iter_any():
+        buffer += chunk.decode('utf-8', errors='replace')
+        while "\n" in buffer:
+            line, buffer = buffer.split("\n", 1)
+            processed = processLine(line, line_prefix, data_handler)
+            if processed is not None:
+                yield processed
+    if buffer.strip():
+        yield processLine(buffer, line_prefix, data_handler) or None
+
+
+def processLine(
+        line: str,
+        prefix: str,
+        handler: Optional[Callable] = None
+) -> Optional[Union[str, dict]]:
+    """将数据从流式数据中提取出来
+
+    Args:
+        line: 数据行
+        prefix: 数据行前缀
+        handler: 数据处理函数，接收json字符串，返回处理后的结果，留空则不处理直接返回dict对象
+
+    Returns:
+
+    """
+    line = line.strip()
+    if not line.startswith(prefix):
+        return None
+    try:
+        json_str = line[len(prefix):].strip()
+        if handler:
+            return handler(json.loads(json_str)) if json_str else None
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        # logger.error(f"Invalid JSON data: {line}")
+        # 感觉没什么用，但是可能将来有用
+        return None
+    except Exception as e:
+        logger.exception(f"Error processing line: {line}", e)
+        return None
