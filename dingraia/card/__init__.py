@@ -2,7 +2,7 @@ from typing import AsyncGenerator, Callable, Generator, Iterator, List, Literal,
 
 import aiohttp
 
-from ..tools import asyncGenerator2list
+from ..tools import asyncGenerator2list, streamProcessor
 import json as _json
 
 
@@ -113,6 +113,8 @@ class AICard(BaseCard):
         c = ""
         if isinstance(self.response, AsyncGenerator):
             async for c in self.response:
+                if not c:
+                    continue
                 self._texts.append(c)
                 content += c
                 if len(content) >= length_limit:
@@ -173,24 +175,8 @@ class AICard(BaseCard):
         async def get_answer():
             async with aiohttp.ClientSession() as session:
                 async with session.post(post_url, json=json, headers=headers, timeout=timeout) as response:
-                    if response.status != 200:
-                        response.raise_for_status()
-                    last_data = ""
-                    async for resp in response.content.iter_any():
-                        if "\n" in (solve_data := resp.decode('utf-8').replace(last_data, '')):
-
-                            def return_answer(line_str: str):
-                                if line_str.startswith('data:'):
-                                    json_str = line_str[len('data:'):].strip()
-                                    if "{" in json_str and "}" in json_str:
-                                        return data_handler(_json.loads(json_str))
-                                return ""
-
-                            for data in solve_data.split('\n'):
-                                answer = return_answer(data)
-                                if answer:
-                                    yield answer
-                                yield ""
-                            last_data = solve_data
+                    response.raise_for_status()
+                    async for text in streamProcessor(response, data_handler):
+                        yield text
 
         self.set_response(get_answer())
