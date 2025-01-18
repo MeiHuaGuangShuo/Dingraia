@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from typing import Union, Callable
 import os
 from ..log import logger
+from ..i18n import i18n
 
 from .channel import Channel
 from .context import channel_instance, saya_instance
@@ -37,11 +38,11 @@ class Saya:
             return
         if module_name.endswith('.py'):
             module_name = module_name[:-3]
-        logger.debug(f"正在载入模块 {module_name}")
+        logger.debug(i18n.SayaLoadingModuleText.format(module_name=module_name))
         module = __import__(module_name)
         self.channels[module_name] = module
         self.mirrors[module] = module_name
-        logger.info(f"模块 {module_name} 载入完成")
+        logger.info(i18n.SayaLoadedModuleText.format(module_name=module_name))
     
     def uninstall_channel(self, module_name: Union[str, Callable]):
         if module_name in self.channels or module_name in self.channels.values():  # 写到这里自己都看不懂了
@@ -55,11 +56,11 @@ class Saya:
                 raise KeyError("This must be an issue")
             channel = Channel.current()
             reged = channel.reg_event
-            for module in reged.values():
+            for event, module in reged.items():
                 modules = list(module.keys())
                 if module_name in modules:
                     channel.reg_event[event].pop(module_name)
             if module_name in sys.modules:
                 del sys.modules[module_name]
         else:
-            raise KeyError(f"模块 {module_name} 没有被载入！")
+            raise KeyError(i18n.SayaModuleNotLoadedText.format(module_name=module_name))
