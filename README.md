@@ -5,6 +5,9 @@
 在 `v2.0.9` 及以前的版本中，ActionCard的按钮属性名称为 `button` ，
 在这之后的版本中将以 `buttons` 替代
 
+在 `v2.1.0` 及以后的版本中 `dingraia.DingTalk.Dingtalk` 的 `get_user`
+函数的第一个值由 `userStaffId` 变为 `user`
+
 # 这是什么？
 
 这个是一个关于能套用Graia-Ariadne部分项目的模块
@@ -26,7 +29,6 @@
 - 应答机制
     - HTTP 回调
     - Stream 回调
-    - OutGoing..?
 - 使用方式
     - 脚本运行
         - 机器人阻塞模式
@@ -48,6 +50,8 @@
         - 预设 Markdown 卡片
     - 改变卡片内容 (自行构造JSON数据)
   - 发送 AI 卡片，支持流式更新 (需要[配置](#ai-卡片的配置))
+      - 支持流式Post方法 AI API
+      - 对 `DeepSeek` API 的额外适配
     - 创建群
     - 获取群消息
     - 获取部门消息
@@ -96,11 +100,14 @@ At可以传入Member实例（仅限企业内部机器人）与手机号，会自
 
 使用 **场景群** 获取最完整体验
 
+钉钉默认的临时webhook地址有效期为**2小时**，如果存储后发送可能会导致
+地址实现从而使用API发送，从而丢失At消息。
+
 # 需求
 
 拥有企业内部开发权限
 
-你可以在启动机器人时传入空值（忘记是哪里了），在企业内部机器人的情况下，自带临时地址，无需手动输入webhook地址（没有完整体验，只能收发）
+你可以在启动机器人时 `Config` 传入空值，在企业内部机器人的情况下，自带临时地址，无需手动输入webhook地址（没有完整体验，只能收发）
 > 仅 `HTTP` 模式下支持此特性
 
 # 实现方法
@@ -351,6 +358,7 @@ def sync_example(app: Dingtalk):
 - 调用 `get_user`、`get_group` 的时候
 - 遇到群组名称更新时
 - 每次接收到信息时
+- 上传文件时 (默认配置，无法禁用(相同的文件还浪费那API干啥))
 
 如果需要设置禁言缓存或设置缓存时长，请在启动文件中添加额外参数
 
@@ -364,7 +372,9 @@ app = Dingtalk(
         dataCacheTime=86400  # 设置 get_user 等函数的允许使用缓存的时长
     )
 )
-app.get_user("StaffId", using_cache=True)  # using_cache 用于优先使用缓存，如果没有缓存仍然会从API获取用户信息
+app.get_user("<StaffId>", using_cache=True)
+# using_cache 用于优先使用缓存，如果没有缓存仍然会从API获取用户信息
+# 对于数据实时性要求高但不想全局禁用缓存的场景，请使用using_cache=False
 ```
 
 当使用缓存时，`get_user`、`get_group` 将会在字典中添加 `dingraia_cache` 的键，
