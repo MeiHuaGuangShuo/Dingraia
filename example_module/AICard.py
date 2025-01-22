@@ -1,4 +1,5 @@
 from dingraia.lazy import *
+from dingraia.aiAPI.deepseek import DeepSeek, DeepSeek_R1
 
 example_text = """\
 你说的对，但是《原神》是由米哈游自主研发的一款全新开放世界冒险游戏。游戏发生在一个被称作「提瓦特」的幻想世界，在这里，被神选中的人将被授予\
@@ -31,6 +32,9 @@ Genshin Impact is a promising game that is driving other similar games forward.
 
 Your question is {question}
 """
+
+# DeepSeek 示例 / DeepSeek example
+deepseek = DeepSeek("your_api_key", systemPrompt="你是一个有用的助手。", maxContextLength=1000)
 
 
 @channel.use(ListenerSchema(listening_events=[GroupMessage]))
@@ -86,3 +90,15 @@ async def ai_reply(app: Dingtalk, group: Group, message: MessageChain):
         # the unit is characters, and 100 means to update the card every 100 characters.
         # In general, DingTalk will control the typing effect of the card separately,
         # so updating 100 characters every time is sufficient and appropriate.
+    elif s_mes.startswith("/dsai "):
+        question = s_mes[6:]
+        ai_card = AICard()
+        ai_card.set_response(deepseek.generateAnswerFunction(question))
+        await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
+                               update_limit=10)
+    elif s_mes.startswith("/dsrai "):
+        question = s_mes[6:]
+        ai_card = AICard()
+        ai_card.set_response(deepseek.generateAnswerFunction(question, DeepSeek_R1))
+        await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
+                               update_limit=10)
