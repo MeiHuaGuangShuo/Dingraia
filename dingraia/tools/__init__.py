@@ -70,7 +70,10 @@ def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str
             f.write(content.read())
         else:
             raise TypeError(f"content must be BytesIO or BufferedReader, but got {type(content)}")
-    yield str(fileName.resolve())
+    try:
+        yield str(fileName.resolve())
+    except:
+        pass
     fileName.unlink()
 
 
