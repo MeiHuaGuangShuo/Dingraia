@@ -6,5 +6,5 @@ rich
 loguru
 mutagen
 pycryptodome
-moviepy
 IPython
+pymediainfo>=6.1.0

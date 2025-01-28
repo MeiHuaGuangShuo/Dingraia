@@ -6,7 +6,6 @@ import functools
 import hmac
 import importlib.metadata
 import inspect
-import json
 import random
 import signal
 import socket
@@ -23,7 +22,7 @@ from urllib.parse import urlencode, urljoin
 import mutagen
 import websockets
 from aiohttp import ClientResponse, ClientSession, web
-from moviepy.editor import VideoFileClip
+from pymediainfo import MediaInfo
 
 from .VERSION import VERSION
 from .callback_handler import callback_handler
@@ -159,7 +158,6 @@ class Dingtalk:
             Response
 
         """
-        # TODO
         if headers is None:
             headers = {}
         response = Response()
@@ -1600,7 +1598,7 @@ class Dingtalk:
         """上传一个文件到钉钉并获取mediaId
         
         Args:
-            file: 需要上传的文件
+            file: 需要上传的文件，可以是路径，网址和File对象
 
         Returns:
             File: 已经填入了mediaId的File对象
@@ -1682,11 +1680,14 @@ class Dingtalk:
                     raise ValueError("picMediaId must be specified for video file!")
                 file.picMediaId = await self._file2mediaId(file.picMediaId)
                 with write_temp_file(f, 'mp4') as tempFile:
-                    videoFile = VideoFileClip(tempFile)
-                    file_length = videoFile.duration
-                    file.duration = int(file_length)
-                    file.width, file.height = videoFile.size
-                    videoFile.close()
+                    videoFile = MediaInfo.parse(tempFile)
+                    videoTrack = videoFile.video_tracks
+                    if not videoTrack:
+                        raise ValueError("No video track found in the video file!")
+                    videoTrack = videoTrack[0]
+                    file.width = videoTrack.width
+                    file.height = videoTrack.height
+                    file.duration = int(videoTrack.duration * 1000)
                 f.seek(0)
             data = aiohttp.FormData()
             data.add_field('type', file_type)
@@ -3024,7 +3025,10 @@ class Dingtalk:
                 file = await self.upload_file(file)
             file = file.mediaId
         elif isinstance(file, str):
-            if Path(file).exists():
+            if file.startswith("http"):
+                file = await self.upload_file(file)
+                file = file.mediaId
+            elif Path(file).exists():
                 file = await self.upload_file(file)
                 file = file.mediaId
             else:
