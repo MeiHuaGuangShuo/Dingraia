@@ -6,6 +6,7 @@ import functools
 import hmac
 import importlib.metadata
 import inspect
+import json
 import random
 import signal
 import socket
@@ -112,10 +113,12 @@ class Dingtalk:
     """HTTP路由"""
     oauth_data: Dict[str, str] = {}
     """OAuth数据，键为uuid"""
+    cardInstanceCallBack: Dict[str, dict] = {}
+    """卡片回调数据"""
     _running_mode: List[str] = []
 
     _forbidden_request_method: Literal["none", "return", "raise"] = "none"
-    """是否禁止请求"""
+    """"""  # 忘了是干啥的了
 
     _protected_route_paths: Dict[str, List[str]] = {
         "/"                 : ["POST"],
@@ -461,6 +464,20 @@ class Dingtalk:
         res = await self.api_request.post("/v1.0/robot/ding/send", json=data)
         return res
 
+    async def get_card_data(self, outTrackId: str) -> Optional[dict]:
+        """获取卡片数据
+
+        Args:
+            outTrackId: 卡片的追溯ID
+
+        Returns:
+            dict: 卡片数据
+
+        """
+        if outTrackId in self.cardInstanceCallBack:
+            return self.cardInstanceCallBack[outTrackId]
+        return None
+
     async def send_card(
             self,
             target: Union[OpenConversationId, Group, Member],
@@ -608,6 +625,9 @@ class Dingtalk:
             update_limit: int = 0,
             *,
             key: str = "content",
+            stopActionId: str = "stop",
+            stopHandler: Callable[dict, bool] = None,
+            stopAdditionalText: str = "[Stop]",
             outTrackId: str = None
     ):
         if not outTrackId:
@@ -625,6 +645,24 @@ class Dingtalk:
                 body["guid"] = str(uuid.uuid1())
                 body["content"] = content
                 res = await self.api_request.jput("/v1.0/card/streaming", json=body)
+                cardCallBack = await self.get_card_data(outTrackId=outTrackId)
+                if cardCallBack:
+                    if stopHandler:
+                        if stopHandler(cardCallBack):
+                            if stopAdditionalText:
+                                body["guid"] = str(uuid.uuid1())
+                                body["content"] = content + stopAdditionalText
+                                await self.api_request.jput("/v1.0/card/streaming", json=body)
+                            break
+                    if stopActionId:
+                        if "value" in cardCallBack:
+                            actionIds = json.loads(cardCallBack["value"])["cardPrivateData"]["actionIds"]
+                            if stopActionId in actionIds:
+                                if stopAdditionalText:
+                                    body["guid"] = str(uuid.uuid1())
+                                    body["content"] = content + stopAdditionalText
+                                    await self.api_request.jput("/v1.0/card/streaming", json=body)
+                                break
         except Exception as err:
             logger.exception(err)
             body["guid"] = str(uuid.uuid1())
@@ -1924,6 +1962,14 @@ class Dingtalk:
                 "success"   : True,
                 "send_data": ([res] if not isinstance(res, list) else res) + [traceId],
                 "event_type": [res] if not isinstance(res, list) else res,
+                "returns"   : ""
+            }
+        elif data.get("type", "") == "actionCallback":  # TODO 卡片事件创建
+            self.cardInstanceCallBack[data["outTrackId"]] = data
+            return {
+                "success"   : False,
+                "send_data" : [],
+                "event_type": [None],
                 "returns"   : ""
             }
         else:
