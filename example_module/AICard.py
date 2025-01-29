@@ -1,3 +1,4 @@
+import dingraia.exceptions
 from dingraia.lazy import *
 from dingraia.aiAPI.deepseek import DeepSeek, DeepSeek_R1
 
@@ -82,8 +83,13 @@ async def ai_reply(app: Dingtalk, group: Group, message: MessageChain):
         else:
             response = list(example_text.format(question=question))
             ai_card.set_response(response)
-        await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
+        try:
+            await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema",
+                                   card=ai_card,
                                update_limit=100)
+        except dingraia.exceptions.ApiPermissionDeniedError as e:
+            await app.send_message(group, MessageChain("机器人没有权限发送AI卡片，请查看报错信息并勾选对应权限"))
+            logger.error(f"{e.__class__.__name__}: {e}")
         # update_limit 用于控制信息流的更新频率，单位为字符，100则每100个字符更新一次卡片。
         # 一般情况下，钉钉会单独控制输出的卡片的打字机效果，所以每次更新100个也是够用且合适的。
         # The `update_limit` parameter controls the frequency of card updates,
