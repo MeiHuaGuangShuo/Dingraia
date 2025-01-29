@@ -2190,8 +2190,12 @@ class Dingtalk:
             None
 
         """
-        asyncio.run(self._start(port=port, routes=routes, host=host))
-        logger.info(i18n.DingraiaExitedText)
+        try:
+            asyncio.run(self._start(port=port, routes=routes, host=host))
+        except KeyboardInterrupt:
+            logger.info("用户中断程序退出")
+        finally:
+            logger.info(i18n.DingraiaExitedText)
 
     async def _start(self, port: int = None, routes: List[web.RouteDef] = None, host: str = None):
         self.http_routes += [
@@ -2318,13 +2322,26 @@ class Dingtalk:
                 app = web.Application(middlewares=request_handler)
                 app.add_routes(all_routes)
                 runner = web.AppRunner(app)
+                self._runner = runner
                 await runner.setup()
                 site = web.TCPSite(runner, '0.0.0.0', port)
                 await site.start()
                 logger.info(i18n.DingraiaListeningPortText.format(port=port))
 
             self.create_task(start_server(), name="Aiohttp.WebServer", show_info=False, not_cancel_at_the_exit=True)
-        signal.signal(signal.SIGINT, self.stop_for_signal)
+        if sys.platform == "win32":
+            # Windows使用传统signal处理
+            signal.signal(signal.SIGINT, lambda sig, frame: self.stop_for_signal())
+        else:
+            # Linux使用异步安全的add_signal_handler
+            try:
+                self._loop.add_signal_handler(
+                    signal.SIGINT,
+                    self.stop_for_signal  # 注意这里不要带括号，传递函数引用
+                )
+            except NotImplementedError:
+                # 处理某些特殊环境不支持的情况
+                signal.signal(signal.SIGINT, lambda sig, frame: self.stop_for_signal())
         await channel.radio(LoadComplete, self, async_await=True)
         logger.info(i18n.DingraiaLoadCompleteText)
         if not self.loop.is_running():
@@ -2662,7 +2679,7 @@ class Dingtalk:
             logger.info(f"Create async task [{name}]")
         return task, name
 
-    def stop_for_signal(self, _, __):
+    def stop_for_signal(self):
         global exit_signal
         print("\r", end="")
         if exit_signal:
@@ -2670,13 +2687,17 @@ class Dingtalk:
             sys.exit(1)
         logger.warning(i18n.CtrlCToExitText)
         exit_signal = True
-        self._loop.create_task(self.stop())
+        self._loop.call_soon_threadsafe(
+            lambda: self._loop.create_task(self.stop())
+        )
 
     async def stop(self):
         logger.info(i18n.StoppingDingraiaText)
-        if isinstance(self._clientSession, ClientSession):
-            if not self._clientSession.closed:
-                await self._clientSession.close()
+        if isinstance(self._clientSession, ClientSession) and not self._clientSession.closed:
+            await self._clientSession.close()
+        if hasattr(self, '_runner'):
+            await self._runner.cleanup()
+        cancel_timeout = 3.0
         tasks = self.async_tasks
         names = ', '.join([x.get_name() for x in self.async_tasks])
         if tasks:
@@ -2693,6 +2714,22 @@ class Dingtalk:
                             logger.error(i18n.SingleAsyncTaskCancelledFailedText.format(name=name))
                         else:
                             logger.success(i18n.SingleAsyncTaskCancelledSuccessText.format(name=name))
+        tasks = [t for t in self.async_tasks if not t.done()]
+        for task in tasks:
+            task.cancel()
+        done, pending = await asyncio.wait(
+            tasks,
+            timeout=cancel_timeout,
+            return_when=asyncio.ALL_COMPLETED
+        )
+        if pending:
+            logger.warning(f"强制清理 {len(pending)} 个未及时终止的任务")
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
         logger.success(i18n.AllAsyncTasksCancelledSuccessText)
 
     async def coroutine_watcher(self, function, *args, **kwargs):
