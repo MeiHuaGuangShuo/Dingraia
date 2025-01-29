@@ -25,7 +25,7 @@ if not os.path.exists(Path("main.py")):
 path = path or "main.py"
 path = path.replace('.py', '')
 app: Dingtalk = __import__(path).app
-loop = asyncio.get_event_loop()
+loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
 

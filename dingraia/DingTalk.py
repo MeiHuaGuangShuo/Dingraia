@@ -2350,7 +2350,7 @@ class Dingtalk:
             if not self.app._loop:
                 self.app._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.app._loop)
-            self.app._clientSession = ClientSession()
+            self.app._clientSession = ClientSession(loop=self.app._loop)
             if self.app.config:
                 if self.app.config.bot:
                     self.app._access_token = get_token(self.app.config.bot.appKey, self.app.config.bot.appSecret)
