@@ -134,8 +134,9 @@ def processLine(
 
     """
     line = line.strip()
-    if not line.startswith(prefix):
-        return None
+    if prefix:
+        if not line.startswith(prefix):
+            return None
     try:
         json_str = line[len(prefix):].strip()
         if handler:

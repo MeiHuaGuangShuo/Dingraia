@@ -1,6 +1,3 @@
-"""
-DeepSeek API
-"""
 from typing import Any, AsyncGenerator
 
 from dingraia.model import Group, Member
@@ -10,12 +7,17 @@ from dingraia.aiAPI import aiAPI
 from dingraia.log import logger
 import aiohttp
 
-DeepSeek_Chat = "deepseek-chat"
-DeepSeek_R1 = "deepseek-reasoner"
-DeepSeekAPI = "https://api.deepseek.com/chat/completions"
+LLama_3_2 = "llama3.2"
+DeepSeek_R1_1_5_B = "deepseek-r1:1.5b"
+DeepSeek_R1_7_B = "deepseek-r1:7b"
+DeepSeek_R1_8_B = "deepseek-r1:8b"
+DeepSeek_R1_14_B = "deepseek-r1:14b"
+DeepSeek_R1_32_B = "deepseek-r1:32b"
+DeepSeek_R1_70_B = "deepseek-r1:70b"
+DeepSeek_R1_671_B = "deepseek-r1:671b"
 
 
-class DeepSeek(aiAPI):
+class Ollama(aiAPI):
 
     _messages = []
 
@@ -35,76 +37,70 @@ class DeepSeek(aiAPI):
             "stream"  : True
         }
 
-    def __init__(self, apiKey: str, systemPrompt: str = "You are a helpful assistant.", maxContextLength: int = 1000):
-        self.apiKey = apiKey
+    def __init__(
+            self,
+            url: str = "http://localhost:11434",
+            systemPrompt: str = "You are a helpful assistant.",
+            maxContextLength: int = 1000
+    ):
+        if url.endswith("/"):
+            url = url[:-1]
+        self.url = url
         self.systemPrompt = systemPrompt
         self.maxContextLength = maxContextLength
         self.messages.append({"role": "system", "content": self.systemPrompt})
 
-    def generateAnswerFunction(self, question: str, model: str = DeepSeek_Chat, user: Member = None) -> AsyncGenerator[
+    def generateAnswerFunction(self, question: str, model: str = LLama_3_2, user: Member = None) -> AsyncGenerator[
         str, Any]:
 
         async def generateAnswer():
             userMessage = {"role": "user", "content": question}
             if isinstance(user, Member):
-                userMessage["name"] = f"{user.name}"
                 userMessage["content"] = f"UserName: {user.name}, Message: {question}"
                 if isinstance(user.group, Group):
-                    userMessage["name"] += f" from {user.group.name}"
                     userMessage["content"] = f"UserName: {user.name}, GroupName: {user.group.name}, Message: {question}"
             self.messages.append(userMessage)
             payload = self.ChatPayloadBase.copy()
             payload["model"] = model
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                        DeepSeekAPI,
-                        headers={"Authorization": f"Bearer {self.apiKey}"},
+                        self.url + "/api/chat",
                         json=payload
                 ) as response:
                     if response.status != 200:
                         logger.error(
-                            f"Error in DeepSeek API: {response.status} {response.reason}, Response: {await response.text()}")
-                        yield StopIteration
+                            f"Error in Ollama API: {response.status} {response.reason}, Response: {await response.text()}")
+                        raise StopIteration
                     answer = ""
-                    onThink = model == DeepSeek_R1
-                    async for d in streamProcessor(response=response):
+                    onThink = False
+                    async for d in streamProcessor(response=response, line_prefix=""):
                         d: dict
                         if d:
-                            reason_text = d["choices"][0]["delta"].get("reasoning_content")
-                            main_text = d["choices"][0]["delta"]["content"]
-                            if onThink and not answer.strip().startswith("> **思考**"):
+                            content = d["message"]["content"]
+                            if "<think>" in content and "</think>" in content:
+                                answer += "> **思考: ** "
+                                yield "> **思考: ** "
+                                content = content.replace("<think>", "").replace("</think>", "")
+                            elif "<think>" in content:
+                                onThink = True
                                 answer += "> **思考**\n> \n> "
                                 yield "> **思考**\n> \n> "
-                            if reason_text:
-                                if "\n" in reason_text:
-                                    # reason_text = reason_text.replace("\n\n", "<?\\n\\n?>")
-                                    reason_text = reason_text.replace("\n", "\n> ")
-                                    # reason_text = reason_text.replace("<?\\n\\n?>", "\n\n> ")
-                                answer += reason_text
-                                yield reason_text
-                                continue
-                            if main_text:
-                                if onThink:
-                                    onThink = False
-                                    yield "\n\n"
-                                answer += main_text
-                                yield main_text
+                                content = content.replace("<think>", "")
+                            elif "</think>" in content:
+                                onThink = False
+                                yield "\n\n---\n\n"
+                                answer += "\n\n---\n\n"
+                                content = content.replace("</think>", "")
+                            if content:
+                                if onThink and "\n" in content:
+                                    content = content.replace("\n", "\n> ")
+                                answer += content
+                                yield content
                     if answer:
                         self.messages.append({"role": "assistant", "content": answer})
 
         return generateAnswer()
-
-    async def getAccountBalance(self) -> tuple[float, float, float, str]:
-        async with (aiohttp.ClientSession() as session):
-            async with session.get(
-                    f"https://api.deepseek.com/user/balance",
-                    headers={"Authorization": f"Bearer {self.apiKey}"}
-            ) as response:
-                data = await response.json()
-                if data.get("is_available"):
-                    return (data["balance_infos"][0]["total_balance"], data["balance_infos"][0]["granted_balance"],
-                            data["balance_infos"][0]["topped_up_balance"], data["balance_infos"][0]["currency"])
-                return 0.0, 0.0, 0.0, "Not available"
 
     async def getAvailableModels(self) -> dict[str, str]:
         async with (aiohttp.ClientSession() as session):
