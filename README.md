@@ -52,7 +52,7 @@
   - 发送 AI 卡片，支持流式更新 (需要[配置](#ai-卡片的配置))
       - 支持流式Post方法 AI API
       - 对 `DeepSeek` API 的额外适配
-    - 对 `Ollama` API 的额外适配 (目前仅测试 DeepSeek-R1 本地模型)
+      - 对 `Ollama` API 的额外适配 (目前仅测试 DeepSeek-R1 本地模型)
       - 支持停止AI生成
     - 创建群
     - 获取群消息
