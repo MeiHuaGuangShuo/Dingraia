@@ -366,12 +366,19 @@ def sync_example(app: Dingtalk):
 
 ```python
 from dingraia.lazy import *
-from dingraia.config import Config
+from dingraia.config import Config, DataCacheTime
+
+cache = DataCacheTime(
+    dataCacheTime=86400,
+    userInfoCacheTime=3600,
+    groupInfoCacheTime=None,  # 将被设定为 86400
+    userUnionIdConventCacheTime=410281690
+)
 
 app = Dingtalk(
     config=Config(
         useDatabase=False,  # 禁用内置数据库即禁用缓存
-        dataCacheTime=86400  # 设置 get_user 等函数的允许使用缓存的时长
+        dataCacheTime=cache  # 设置 get_user 等函数的允许使用缓存的时长
     )
 )
 app.get_user("<StaffId>", using_cache=True)
@@ -384,8 +391,7 @@ app.get_user("<StaffId>", using_cache=True)
 
 # 兼容度
 
-20%...
-（简单的模块只需要替换import的模块和app）
+似乎没有兼容度可言，已经变化成相似的独立框架了
 
 # TODO
 
