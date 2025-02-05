@@ -126,6 +126,10 @@ class Cache:
             "file"      : {
                 "sha256" : str,
                 "mediaId": str,
+            },
+            "aiAPI"     : {
+                "name": str,
+                "data": str,
             }
         }
         for k, v in to_tables.items():

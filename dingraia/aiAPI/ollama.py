@@ -21,22 +21,6 @@ class Ollama(aiAPI):
 
     _messages = []
 
-    @property
-    def messages(self) -> list:
-        if len(self._messages) > 1:
-            texts = "".join([str(m.get("content", "")) for m in self._messages])
-            while len(texts) > self.maxContextLength:
-                self._messages.pop(1)
-                texts = "".join([str(m.get("content", "")) for m in self._messages])
-        return self._messages
-
-    @property
-    def ChatPayloadBase(self) -> dict:
-        return {
-            "messages": self.messages,
-            "stream"  : True
-        }
-
     def __init__(
             self,
             url: str = "http://localhost:11434",
@@ -48,10 +32,10 @@ class Ollama(aiAPI):
         self.url = url
         self.systemPrompt = systemPrompt
         self.maxContextLength = maxContextLength
-        self.messages.append({"role": "system", "content": self.systemPrompt})
 
-    def generateAnswerFunction(self, question: str, model: str = LLama_3_2, user: Member = None) -> AsyncGenerator[
-        str, Any]:
+    def generateAnswerFunction(
+            self, question: str, model: str = LLama_3_2, user: Member = None, noThinkOutput: bool = False
+    ) -> AsyncGenerator[str, Any]:
 
         async def generateAnswer():
             userMessage = {"role": "user", "content": question}
@@ -59,10 +43,9 @@ class Ollama(aiAPI):
                 userMessage["content"] = f"UserName: {user.name}, Message: {question}"
                 if isinstance(user.group, Group):
                     userMessage["content"] = f"UserName: {user.name}, GroupName: {user.group.name}, Message: {question}"
-            self.messages.append(userMessage)
-            payload = self.ChatPayloadBase.copy()
+            self.messages(user=user).append(userMessage)
+            payload = self.ChatPayloadBase(user=user).copy()
             payload["model"] = model
-
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                         self.url + "/api/chat",
@@ -78,44 +61,54 @@ class Ollama(aiAPI):
                         d: dict
                         if d:
                             content = d["message"]["content"]
-                            if "<think>" in content and "</think>" in content:
-                                answer += "> **思考: ** "
-                                yield "> **思考: ** "
-                                content = content.replace("<think>", "").replace("</think>", "")
-                            elif "<think>" in content:
-                                onThink = True
-                                answer += "> **思考**\n> \n> "
-                                yield "> **思考**\n> \n> "
-                                content = content.replace("<think>", "")
-                            elif "</think>" in content:
-                                onThink = False
-                                yield "\n\n---\n\n"
-                                answer += "\n\n---\n\n"
-                                content = content.replace("</think>", "")
-                            if content:
-                                if onThink and "\n" in content:
-                                    content = content.replace("\n", "\n> ")
-                                answer += content
-                                yield content
+                            current_pos = 0
+                            while current_pos < len(content):
+                                if onThink:
+                                    end_pos = content.find('</think>', current_pos)
+                                    if end_pos != -1:
+                                        think_content = content[current_pos:end_pos]
+                                        if not noThinkOutput:
+                                            think_content = think_content.replace('\n', '\n> ')
+                                            answer += think_content
+                                            yield think_content
+                                        current_pos = end_pos + len('</think>')
+                                        onThink = False
+                                        # Process remaining content as normal
+                                        remaining = content[current_pos:]
+                                        if remaining:
+                                            answer += remaining
+                                            yield remaining
+                                        current_pos = len(content)  # Exit loop after processing
+                                    else:
+                                        # Entire remaining content is part of think
+                                        think_content = content[current_pos:]
+                                        if not noThinkOutput:
+                                            think_content = think_content.replace('\n', '\n> ')
+                                            answer += think_content
+                                            yield think_content
+                                        current_pos = len(content)
+                                        # onThink remains True
+                                else:
+                                    # Look for <think> in remaining content
+                                    start_pos = content.find('<think>', current_pos)
+                                    if start_pos != -1:
+                                        # Process normal content before <think>
+                                        normal_content = content[current_pos:start_pos]
+                                        if normal_content:
+                                            answer += normal_content
+                                            yield normal_content
+                                        current_pos = start_pos + len('<think>')
+                                        if not noThinkOutput:
+                                            yield "> **思考** \n> \n> "
+                                        onThink = True
+                                    else:
+                                        # Process all remaining as normal
+                                        normal_content = content[current_pos:]
+                                        if normal_content:
+                                            answer += normal_content
+                                            yield normal_content
+                                        current_pos = len(content)
                     if answer:
-                        self.messages.append({"role": "assistant", "content": answer})
+                        self.messages(user=user).append({"role": "assistant", "content": answer})
 
         return generateAnswer()
-
-    async def getAvailableModels(self) -> dict[str, str]:
-        async with (aiohttp.ClientSession() as session):
-            async with session.get(
-                    f"https://api.deepseek.com/models",
-                    headers={"Authorization": f"Bearer {self.apiKey}"}
-            ) as response:
-                data = await response.json()
-                data = data["data"]
-                models = {}
-                for model in data:
-                    models[model["id"]] = model
-                return models
-
-    def clearHistory(self):
-        self._messages = [
-            {"role": "system", "content": self.systemPrompt}
-        ]

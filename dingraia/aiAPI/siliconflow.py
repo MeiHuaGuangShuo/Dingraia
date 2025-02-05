@@ -3,7 +3,7 @@ from typing import Any, AsyncGenerator
 from dingraia.model import Group, Member
 
 from dingraia.tools import streamProcessor
-from dingraia.aiAPI import aiAPI
+from dingraia.aiAPI import OpenAI
 from dingraia.log import logger
 import aiohttp
 
@@ -54,104 +54,26 @@ Pro_Meta_Llama_3_1_8B_Instruct = "Pro/meta-llama/Meta-Llama-3.1-8B-Instruct"
 Pro_Gemma_2_9b_It = "Pro/google/gemma-2-9b-it"
 
 
-class SiliconFlow(aiAPI):
+class SiliconFlow(OpenAI):
 
     _messages = []
 
-    @property
-    def messages(self) -> list:
-        if len(self._messages) > 1:
-            texts = "".join([str(m.get("content", "")) for m in self._messages])
-            while len(texts) > self.maxContextLength:
-                self._messages.pop(1)
-                texts = "".join([str(m.get("content", "")) for m in self._messages])
-        return self._messages
-
-    @property
-    def ChatPayloadBase(self) -> dict:
-        return {
-            "messages": self.messages,
-            "stream"  : True
-        }
+    platformName = "SiliconFlow"
 
     def __init__(
             self,
             apiKey: str,
             systemPrompt: str = "You are a helpful assistant.",
-            maxContextLength: int = 1000
+            maxContextLength: int = 2048
     ):
-        self.apiKey = apiKey
-        self.systemPrompt = systemPrompt
-        self.maxContextLength = maxContextLength
-        self.messages.append({"role": "system", "content": self.systemPrompt})
+        super().__init__(
+            apiKey,
+            systemPrompt=systemPrompt,
+            maxContextLength=maxContextLength,
+            baseUrl="https://api.siliconflow.cn/v1"
+        )
 
     def generateAnswerFunction(
             self, question: str, model: str = DeepSeek_V3, user: Member = None, noThinkOutput: bool = False
     ) -> AsyncGenerator[str, Any]:
-
-        async def generateAnswer():
-            userMessage = {"role": "user", "content": question}
-            if isinstance(user, Member):
-                userMessage["content"] = f"UserName: {user.name}, Message: {question}"
-                if isinstance(user.group, Group):
-                    userMessage["content"] = f"UserName: {user.name}, GroupName: {user.group.name}, Message: {question}"
-            self.messages.append(userMessage)
-            payload = self.ChatPayloadBase.copy()
-            payload["model"] = model
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                        "https://api.siliconflow.cn/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {self.apiKey}"},
-                        json=payload
-                ) as response:
-                    if response.status != 200:
-                        logger.error(
-                            f"Error in SiliconFlow API: {response.status} {response.reason}, Response: {await response.text()}")
-                        return
-                    answer = ""
-                    onThink = False
-                    async for d in streamProcessor(response=response):
-                        d: dict
-                        if d:
-                            reason_text = d["choices"][0]["delta"].get("reasoning_content")
-                            main_text = d["choices"][0]["delta"]["content"]
-                            if not answer.strip() and reason_text:
-                                onThink = True
-                            if onThink and not answer.strip().startswith("> **思考**"):
-                                answer += "> **思考**\n> \n> "
-                                yield "> **思考**\n> \n> "
-                            if reason_text:
-                                if "\n" in reason_text:
-                                    reason_text = reason_text.replace("\n", "\n> ")
-                                answer += reason_text
-                                yield reason_text
-                                continue
-                            if main_text:
-                                if onThink:
-                                    onThink = False
-                                    yield "\n\n"
-                                answer += main_text
-                                yield main_text
-                    if answer:
-                        self.messages.append({"role": "assistant", "content": answer})
-
-        return generateAnswer()
-
-    async def getAvailableModels(self) -> dict[str, str]:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                    f"https://api.siliconflow.cn/v1/models",
-                    headers={"Authorization": f"Bearer {self.apiKey}"}
-            ) as response:
-                data = await response.json()
-                data = data["data"]
-                models = {}
-                for model in data:
-                    models[model["id"]] = model
-                return models
-
-    def clearHistory(self):
-        self._messages = [
-            {"role": "system", "content": self.systemPrompt}
-        ]
+        return super().generateAnswerFunction(question, model, user, noThinkOutput)
