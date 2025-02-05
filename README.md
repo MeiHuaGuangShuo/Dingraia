@@ -1,4 +1,4 @@
-此文档最后更新于25/1/30 `v2.1.0-Pre`
+此文档最后更新于25/2/5 `v2.1.0-Pre`
 
 # 破坏性更改
 
@@ -53,6 +53,7 @@
       - 支持流式 Post 方法的 AI API
       - 对 `DeepSeek` API 的额外适配
       - 对 `Ollama` API 的额外适配 (已测试 DeepSeek-R1 本地模型)
+    - 对 `SiliconFlow` API 的额外适配 (已测试 DeepSeek-V3)
       - 支持停止 AI 生成
   - 创建群组
   - 获取群消息
