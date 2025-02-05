@@ -529,7 +529,7 @@ class Dingtalk:
         }
         if isinstance(target, Member):
             body['openSpaceId'] = f"dtv1.card//IM_ROBOT.{target.staffid}"
-            cardData["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT"}
+            body["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT", "robotCode": self.config.bot.appKey}
         else:
             body['openSpaceId'] = f"dtv1.card//IM_GROUP.{self._openConversationId2str(target)}"
             body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}
