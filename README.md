@@ -54,7 +54,7 @@
       - 对 `DeepSeek` API 的额外适配
       - 对 `Ollama` API 的额外适配 (已测试 DeepSeek-R1 本地模型)
     - 对 `SiliconFlow` API 的额外适配 (已测试 DeepSeek-V3)
-      - 支持停止 AI 生成
+    - 支持停止 AI 生成
   - 创建群组
   - 获取群消息
   - 获取部门消息
