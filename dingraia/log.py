@@ -116,7 +116,7 @@ class _Logger(Logger):
         return [module_name.replace("<", "\\<"), func_name.replace("<", "\\<"), line]
 
     def generate_message(self, lies: list, _message: str):
-        pat = r'<[^(<|>|\s)]+>'
+        pat = r'<[^<>\s]+>'
         index = self.current_logger_index()
         _message = str(_message)
         if _message.startswith(self.color_enable_sign):
