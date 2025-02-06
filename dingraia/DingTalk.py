@@ -7,6 +7,7 @@ import hmac
 import importlib.metadata
 import inspect
 import random
+import re
 import signal
 import socket
 import sys
@@ -626,8 +627,26 @@ class Dingtalk:
             stopActionId: str = "stop",
             stopHandler: Callable[dict, bool] = None,
             stopAdditionalText: str = "[Stop]",
+            maxAnswerLength: int = 8192,
             outTrackId: str = None
     ):
+        """使用支持的AI卡片发送流式消息
+
+        Args:
+            target: 要发送的目标
+            cardTemplateId: 卡片模板ID
+            card: AICard实例
+            update_limit: 更新频率，单位字/次, 0为不限制
+            key: 卡片内容的字段名
+            stopActionId: 需要停止输出时对应的回调ActionId
+            stopHandler: 判断是否停止输出的回调函数，传入回调字典，返回True则停止输出，False则继续输出
+            stopAdditionalText: 停止时的额外提示
+            maxAnswerLength: 最大回答字数
+            outTrackId: 自定义追溯ID, 默认使用UUID1生成
+
+        Returns:
+
+        """
         if not outTrackId:
             outTrackId = str(uuid.uuid1())
         await self.send_card(target=target, cardTemplateId=cardTemplateId, cardData=card.data, outTrackId=outTrackId)
@@ -661,6 +680,11 @@ class Dingtalk:
                                     body["content"] = content + stopAdditionalText
                                     await self.api_request.jput("/v1.0/card/streaming", json=body)
                                 break
+                    if len(content) > maxAnswerLength:
+                        body["guid"] = str(uuid.uuid1())
+                        body["content"] = content + f"[Stop for context limit {maxAnswerLength}]"
+                        await self.api_request.jput("/v1.0/card/streaming", json=body)
+                        break
         except Exception as err:
             logger.exception(err)
             body["guid"] = str(uuid.uuid1())
@@ -682,6 +706,82 @@ class Dingtalk:
         else:
             logger.info(f"[SEND] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
         return resp
+
+    async def send_ai_message(
+            self,
+            target: Union[OpenConversationId, Group, Member],
+            card: AICard,
+            *,
+            maxAnswerLength: int = 8192,
+    ):
+        """通过Markdown消息发送AI消息，按段发送，最小API用量
+
+        Args:
+            target: 发送的目标
+            card: AICard实例
+            maxAnswerLength: 最大回答字数
+
+        Returns:
+
+        """
+        CODE_BLOCK_PATTERN = re.compile(r'(```.*?```)|(\n\n|\n> \n>)', re.DOTALL)
+        buffer = ""
+        in_code_block = False
+        try:
+            async for content in card.streaming_string(full_content=False):
+                buffer += content
+                while True:
+                    split_pos = -1
+                    last_match_end = 0
+                    for match in CODE_BLOCK_PATTERN.finditer(buffer):
+                        start, end = match.span()
+                        if match.group(1):
+                            in_code_block = not in_code_block
+                        elif not in_code_block:
+                            split_pos = end
+                            break
+                        last_match_end = end
+                    if split_pos != -1:
+                        part = buffer[:split_pos]
+                        remaining = buffer[split_pos:]
+                        if len(part) > maxAnswerLength:
+                            truncated = part[:maxAnswerLength]
+                            await self.send_message(
+                                target,
+                                Markdown(f"{truncated}\n\n---\n\n[Stop for context limit {maxAnswerLength}]", truncated)
+                            )
+                            buffer = remaining
+                            break
+                        else:
+                            await self.send_message(target, Markdown(part, part))
+                            buffer = remaining
+                    else:
+                        break
+                    if len(buffer) > maxAnswerLength:
+                        truncated = buffer[:maxAnswerLength]
+                        await self.send_message(
+                            target,
+                            Markdown(f"{truncated}\n\n---\n\n[Stop for context limit {maxAnswerLength}]", truncated)
+                        )
+                        buffer = ""
+                        break
+                if len(buffer) > maxAnswerLength:
+                    break
+            if buffer:
+                await self.send_message(target, Markdown(buffer, buffer))
+        except Exception as err:
+            logger.exception(err)
+            await self.send_message(target, MessageChain("出错了，请稍后再试"))
+        await asyncio.sleep(0.5)
+        await self.send_message(target, MessageChain("[结束]"))
+        if isinstance(target, Group):
+            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
+        elif isinstance(target, Member):
+            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
+        elif isinstance(target, OpenConversationId):
+            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
+        else:
+            logger.info(f"[SEND] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
 
     async def create_group(
             self,
