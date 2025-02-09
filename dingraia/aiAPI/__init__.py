@@ -46,11 +46,49 @@ class aiAPI:
 
     def clearHistory(self, user: Union[Member, int] = None):
         if isinstance(user, Member):
-            if int(user) in self._userMessages:
+            if str(int(user)) in self._userMessages:
                 self._userMessages.pop(str(user.id))
             return
         self._messages = [{"role": "system", "content": self.systemPrompt}]
         self._userMessages = {}
+        self.saveHistory()
+
+    def deleteMessage(self, count: int = None, user: Union[Member, int] = None):
+        if not count:
+            self.clearHistory(user=user)
+            return
+        if isinstance(user, Member):
+            if str(int(user)) in self._userMessages:
+                mes = self._userMessages[str(user.id)]
+                msgLen = len(mes)
+                if msgLen <= 3:
+                    mes = []
+                elif count * 2 >= msgLen - 1:
+                    mes = []
+                else:
+                    while count > 0:
+                        m = mes[-1]
+                        if m.get("role") == "user":
+                            count -= 1
+                        mes.pop(-1)
+                self._userMessages[str(user.id)] = mes
+            return
+        mes = self._messages
+        msgLen = len(mes)
+        if msgLen <= 3:
+            mes = []
+        elif count * 2 >= msgLen - 1:
+            mes = []
+        else:
+            while count > 0:
+                m = mes[-1]
+                if m.get("role") == "user":
+                    count -= 1
+                mes.pop(-1)
+        self._messages = mes
+        self.saveHistory()
+
+
 
     def saveHistory(self):
         data = json.dumps({
@@ -95,7 +133,8 @@ class OpenAI(aiAPI):
         self.systemPrompt = systemPrompt
         self.maxContextLength = maxContextLength
         self.loadHistory()
-        self.messages().append({"role": "system", "content": self.systemPrompt})
+        if not self.messages():
+            self.messages().append({"role": "system", "content": self.systemPrompt})
 
     async def getAvailableModels(self) -> dict[str, str]:
         async with aiohttp.ClientSession() as session:
@@ -134,6 +173,8 @@ class OpenAI(aiAPI):
                     if response.status != 200:
                         logger.error(
                             f"Error in {self.platformName} API: {response.status} {response.reason}, Response: {await response.text()}")
+                        yield f"Error in {self.platformName} API: {response.status} {response.reason}"
+                        preWriteAssistantMessage["content"] = "{Empty Answer}"
                         return
                     answer = ""
                     onThink = False

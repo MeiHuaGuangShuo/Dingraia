@@ -99,11 +99,12 @@ class AICard(BaseCard):
     def set_content(self, content: str):
         self.response = [content]
 
-    async def streaming_string(self, length_limit: int = 0):
-        """流式输出，总是输出完整文本
+    async def streaming_string(self, length_limit: int = 0, full_content: bool = True):
+        """流式输出
 
         Args:
             length_limit: 最小输出长度，默认为0，即不限制
+            full_content: 是否输出完整文本，默认为True，即输出完整文本
 
         Returns:
 
@@ -113,7 +114,10 @@ class AICard(BaseCard):
         c = ""
         if isinstance(self.response, AsyncGenerator):
             async for c in self.response:
-                if not c:
+                if not isinstance(c, str):
+                    continue
+                if not full_content:
+                    yield c
                     continue
                 self._texts.append(c)
                 content += c

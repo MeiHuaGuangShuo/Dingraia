@@ -421,7 +421,7 @@ class At:
         if isinstance(target, Member):
             self.id = (int(hashlib.sha1(str(target.id)[str(target.id).rfind("$"):].encode('utf-8')).hexdigest(), 16)) % \
                       (10 ** 10) + 1000
-            self.target = str(target.staffid)
+            self.target = str(target.staffid or target.staffId)
         else:
             if isinstance(target, tuple):
                 self.id = (int(hashlib.sha1(str(target[0])[str(target[0]).rfind("$"):].encode('utf-8')).hexdigest(), 16)) % \

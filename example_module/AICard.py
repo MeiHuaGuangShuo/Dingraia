@@ -103,17 +103,28 @@ async def ai_reply(app: Dingtalk, member: Member, group: Group, message: Message
         ai_card = AICard()
         ai_card.set_response(deepseek.generateAnswerFunction(question, user=member))
         await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
-                               update_limit=10)
+                               update_limit=40)
     elif s_mes.startswith("/dsrai "):
         question = s_mes[6:]
         ai_card = AICard()
         ai_card.set_response(deepseek.generateAnswerFunction(question, DeepSeek_R1, user=member))
         await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
-                               update_limit=10)
+                               update_limit=40)
     elif s_mes.startswith("/oai "):
         question = s_mes[5:]
         ai_card = AICard()
         ai_card.set_response(ollama.generateAnswerFunction(question, DeepSeek_R1_32_B, user=member))
         # 4090推荐 32B，4060 8G推荐 8B
         await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
-                               update_limit=10)
+                               update_limit=40)
+    elif s_mes.startswith("/lai "):
+        question = s_mes[5:]
+        ai_card = AICard()
+        ai_card.set_response(ollama.generateAnswerFunction(question, DeepSeek_R1_32_B, user=member))
+        # 4090推荐 32B，4060 8G推荐 8B
+        await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
+                               update_limit=40)
+    elif s_mes == "/reset":
+        deepseek.clearHistory()
+        ollama.clearHistory()
+        await app.send_message(group, MessageChain("重置对话成功"))

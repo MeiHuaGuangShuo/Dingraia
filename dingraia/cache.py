@@ -29,12 +29,13 @@ class Cache:
     def execute(self, command: str, params=tuple(), *, result: bool = False):
         if self.enable:
             try:
-                self.cursor.execute(command, params)
+                cur = self.cursor.execute(command, params)
             except Exception as err:
                 logger.error(f"{err.__class__.__name__}: {err} command: {command}, params: {params}")
                 return ()
             if result:
                 return self.cursor.fetchall()
+            return cur
         else:
             return ()
 

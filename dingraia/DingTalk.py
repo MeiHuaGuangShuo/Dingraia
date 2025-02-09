@@ -25,6 +25,7 @@ import websockets
 from aiohttp import ClientResponse, ClientSession, web
 from pymediainfo import MediaInfo
 
+from .waiter import Waiter
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .card import *
@@ -772,16 +773,6 @@ class Dingtalk:
         except Exception as err:
             logger.exception(err)
             await self.send_message(target, MessageChain("出错了，请稍后再试"))
-        await asyncio.sleep(0.5)
-        await self.send_message(target, MessageChain("[结束]"))
-        if isinstance(target, Group):
-            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
-        elif isinstance(target, Member):
-            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
-        elif isinstance(target, OpenConversationId):
-            logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
-        else:
-            logger.info(f"[SEND] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
 
     async def create_group(
             self,
@@ -1858,6 +1849,25 @@ class Dingtalk:
     def run_coroutine(self, coro: Coroutine[Any, Any, _T]) -> _T:
         """使用内置的Loop运行异步函数并返回结果"""
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
+
+    async def wait_message(self, waiter: Waiter, timeout: float = None):
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+
+        async def event_handler(group: Group, member: Member, message: MessageChain):
+            # 如果future已完成，直接返回避免重复处理
+            if future.done():
+                return
+            # 调用waiter的检测方法，判断是否满足条件
+            result = await waiter.detected_event(group=group, member=member, message=message)
+            if result is not None:
+                future.set_result(result)
+
+        channel.use(
+            ListenEvent=[GroupMessage]
+        )(event_handler)
+
+        return await asyncio.wait_for(future, timeout) if timeout else await future
 
     @property
     def access_token(self) -> str:
