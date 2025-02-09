@@ -122,6 +122,21 @@ git clone git@github.com:MeiHuaGuangShuo/Dingraia.git
 cd Dingraia
 ```
 
+> #### 如果你懒得进行后面的，请使用一键安装脚本 （仅测试Windows）
+> Win
+> ```shell
+> python quickSetup.py
+> ```
+>
+> Linux
+> ```shell
+> python3 quickSetup.py
+> ```
+>
+> 运行完成后会创建 `start.bat`(Windows) 或 `start.sh`(Linux)
+>
+> 运行脚本即可启动，然后下面的你都不用看了
+
 然后复制主程序示例并改名为 `main.py`
 
 ```shell
