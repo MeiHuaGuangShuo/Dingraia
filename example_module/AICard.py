@@ -2,6 +2,8 @@ import dingraia.exceptions
 from dingraia.lazy import *
 from dingraia.aiAPI.deepseek import DeepSeek, DeepSeek_R1
 from dingraia.aiAPI.ollama import Ollama, DeepSeek_R1_32_B, DeepSeek_R1_8_B
+from dingraia.aiAPI.siliconflow import SiliconFlow, DeepSeek_V2_5
+from dingraia.waiter import Waiter
 
 example_text = """\
 你说的对，但是《原神》是由米哈游自主研发的一款全新开放世界冒险游戏。游戏发生在一个被称作「提瓦特」的幻想世界，在这里，被神选中的人将被授予\
@@ -38,7 +40,10 @@ Your question is {question}
 # DeepSeek 示例 / DeepSeek example
 deepseek = DeepSeek("your_api_key", systemPrompt="你是一个有用的助手。", maxContextLength=1000)
 ollama = Ollama(systemPrompt="你是一个有用的助手。", maxContextLength=1000)
+siliconFlow = SiliconFlow("your_api_key", systemPrompt="你是一个有用的助手。", maxContextLength=4096)
 
+mainAI = siliconFlow
+aiChatMode = False  # 设置为 True 开启全量AI聊天模式
 
 @channel.use(ListenerSchema(listening_events=[GroupMessage]))
 async def ai_reply(app: Dingtalk, member: Member, group: Group, message: MessageChain):
@@ -125,6 +130,161 @@ async def ai_reply(app: Dingtalk, member: Member, group: Group, message: Message
         await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
                                update_limit=40)
     elif s_mes == "/reset":
-        deepseek.clearHistory()
-        ollama.clearHistory()
+        mainAI.clearHistory()
         await app.send_message(group, MessageChain("重置对话成功"))
+
+
+@channel.use(ListenerSchema(listening_events=[GroupMessage]))
+async def ai_chat(app: Dingtalk, member: Member, group: Group, message: MessageChain):
+    if not aiChatMode:
+        return
+    if str(message) == '/reset':
+        mainAI.clearHistory(member)
+        await app.send_message(group, "历史已清除")
+    elif str(message) == '/history':
+        mes_sum = ""
+        returnString = "\n"
+        dReturnString = "\n\n"
+        for mes in mainAI.messages(member):
+            if mes.get("role") == "user":
+                mes_sum += f"{mes.get('content').split('Message: ')[1].replace(returnString, dReturnString)}\n---\n\n"
+            elif mes.get("role") == "assistant":
+                mes_sum += f"> {mes.get('content').replace(returnString, dReturnString).replace(returnString, returnString + '> ')}\n---\n\n"
+        await app.send_message(group, Markdown(f"# 对话历史\n\n{mes_sum}", title="[对话历史]"))
+    elif str(message).startswith("/del"):
+        if str(message) == '/del':
+            mainAI.clearHistory(member)
+            await app.send_message(group, "全部对话历史已清除")
+            return
+        elif str(message).startswith('/del '):
+            count = str(message).split(' ', 1)[1]
+            if count.isnumeric():
+                count = int(count)
+                if count > 0:
+                    mainAI.deleteMessage(count, user=member)
+                    await app.send_message(group, f"{count}条对话历史已清除")
+                    return
+            await app.send_message(group, "请输入有效的数字")
+            return
+        await app.send_message(group, "请输入有效的指令，用法：/del [数字]")
+    elif str(message).startswith("/cp "):
+        ats = message.include(At)
+        if ats and len(ats):
+            cpFrom = Member()
+            cpFrom.staffId = ats[0].target
+            await app.update_object(cpFrom)
+            if not cpFrom.id or not cpFrom.name:
+                await app.get_user(cpFrom)
+                await app.update_object(cpFrom)
+            if len(ats) == 1:
+                await app.send_message(group, MessageChain(At(member), " 你现在要复制", At(cpFrom),
+                                                           " 的对话历史，请等待Ta确认(60s)"))
+                await app.send_message(group, Markdown("[同意](dtmd://dingtalkclient/sendMessage?content=/y)"
+                                                       "  或  [拒绝](dtmd://dingtalkclient/sendMessage?content=/n)"))
+                try:
+                    res = await app.wait_message(Waiter(group, cpFrom), timeout=60)
+                except asyncio.TimeoutError:
+                    await app.send_message(group, "对方未确认，复制操作取消")
+                    return
+                if str(res) != "/y":
+                    await app.send_message(group, "对方未确认，复制操作取消")
+                    return
+                raw = mainAI.messages(member)
+                raw.clear()
+                raw.extend(mainAI.messages(cpFrom))
+                await app.send_message(group, MessageChain(At(member), "对话历史已复制"))
+            elif len(ats) == 2:
+                cpTo = Member()
+                cpTo.staffId = ats[1].target
+                await app.update_object(cpTo)
+                if not cpTo.id or not cpTo.name:
+                    await app.get_user(cpTo)
+                    await app.update_object(cpTo)
+                await app.send_message(group,
+                                       MessageChain(At(member), " 你现在要把", At(cpFrom), "的对话历史复制给", At(cpTo),
+                                                    "，请等待", At(cpTo), "确认(60s)"))
+                await app.send_message(group, Markdown("[同意](dtmd://dingtalkclient/sendMessage?content=/y)"
+                                                       "  或  [拒绝](dtmd://dingtalkclient/sendMessage?content=/n)"))
+                try:
+                    res = await app.wait_message(Waiter(group, cpTo), timeout=60)
+                except asyncio.TimeoutError:
+                    await app.send_message(group, "对方未确认，复制操作取消")
+                    return
+                if str(res) != "/y":
+                    await app.send_message(group, "对方未确认，复制操作取消")
+                    return
+                raw = mainAI.messages(cpTo)
+                raw.clear()
+                raw.extend(mainAI.messages(cpFrom))
+                await app.send_message(group, MessageChain(At(member), "对话历史已复制给", At(cpTo)))
+            else:
+                await app.send_message(group, "指令错误，请使用 /cp [用户] 或 /cp [用户1] [用户2]")
+            return
+    elif str(message) == "/regenerate":
+        t = {}
+        userMessages = mainAI.messages(member)
+        while t.get("role") != "user":
+            t = userMessages.pop(-1)
+        content = t.get("content", "")
+        question = content.split("Message: ")[1]
+        ai_card = AICard()
+        ai_card.set_response(mainAI.generateAnswerFunction(question, user=member, model="deepseek-ai/DeepSeek-V2.5"))
+        if group.name == "Unknown":
+            group.name = member.name
+            group.id = member.id
+        await app.send_ai_message(target=group, card=ai_card)
+        await asyncio.sleep(0.5)
+        await app.send_message(group, Markdown("[重新生成](dtmd://dingtalkclient/sendMessage?content=/regenerate)  或  "
+                                               "[删除这个对话](dtmd://dingtalkclient/sendMessage?content=/del%201)  或  "
+                                               "[清空所有历史](dtmd://dingtalkclient/sendMessage?content=/reset)  或  "
+                                               "[查看对话历史](dtmd://dingtalkclient/sendMessage?content=/history)"
+                                               ))
+        return
+    elif str(message).startswith('/set_last_message '):
+        mes = str(message).split(' ', 1)[1]
+        t = {}
+        userMessages = mainAI.messages(member)
+        while t.get("role") != "assistant":
+            t = userMessages.pop(-1)
+        t["content"] = mes
+        mainAI.messages(member).append(t)
+        await app.send_message(group, "已更新上一条消息")
+        return
+    elif str(message).startswith('/sys '):
+        sysP = str(message).split(' ', 1)[1]
+        mainAI.systemPrompt = sysP
+        mainAI.clearHistory(member)
+        await app.send_message(group, "历史已清除，已更新系统提示词")
+    elif not str(message).startswith('/'):
+        ai_card = AICard()
+        question = str(message)
+        ai_card.set_response(mainAI.generateAnswerFunction(question, user=member, model=DeepSeek_V2_5))
+        if app.get_api_counts() < 2500:
+            if group.name == "Unknown":
+                group.name = member.name
+                group.id = member.id
+            await app.send_ai_message(target=group, card=ai_card)
+            await asyncio.sleep(0.5)
+            await app.send_message(group, Markdown("[重新生成](dtmd://dingtalkclient/sendMessage?content=/regenerate)  或  "
+                                                   "[删除这个对话](dtmd://dingtalkclient/sendMessage?content=/del%201)  或  "
+                                                   "[清空所有历史](dtmd://dingtalkclient/sendMessage?content=/reset)  或  "
+                                                   "[查看对话历史](dtmd://dingtalkclient/sendMessage?content=/history)"
+                                                   ))
+        else:
+            if group.name == "Unknown":
+                group = member
+            await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema",
+                                   card=ai_card,
+                                   update_limit=100)
+    elif str(message) == '/help':
+        await app.send_message(group, Markdown(
+            "# AI功能帮助\n\n"
+            "[重新生成最后一次对话](dtmd://dingtalkclient/sendMessage?content=/regenerate)\n\n"
+            "[删除最后一次对话](dtmd://dingtalkclient/sendMessage?content=/del%201)\n\n"
+            "删除多个对话 /del [对话数量]\n\n"
+            "[清空所有历史](dtmd://dingtalkclient/sendMessage?content=/reset)\n\n"
+            "[查看对话历史](dtmd://dingtalkclient/sendMessage?content=/history)\n\n"
+            "设置上一条AI消息 /set_last_message <消息内容>\n\n"
+            "设置系统提示词 /sys <提示词>\n\n"
+            "<>为必填项，[]为可选项\n\n"
+        ))
