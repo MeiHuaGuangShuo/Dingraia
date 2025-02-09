@@ -8,6 +8,10 @@
 在 `v2.1.0` 及以后的版本中 `dingraia.DingTalk.Dingtalk` 的 `get_user`
 函数的第一个值由 `userStaffId` 变为 `user`
 
+# 快速部署
+
+[Stream连接快速部署](./quickDeployStream.md)
+
 # 这是什么？
 
 这个是一个关于能套用Graia-Ariadne部分项目的模块
