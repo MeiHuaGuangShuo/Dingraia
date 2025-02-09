@@ -32,7 +32,7 @@ if input("> ") in ("y", "Y"):
         os.system("python -m venv venv")
         os.system(r".\venv\python.exe -m pip install -r requirements.txt")
         with open("start.bat", "w", encoding="utf-8") as f:
-            f.write(f"@echo off\n.\\venv\\python.exe .\\main.py")
+            f.write(f"@echo off\n.\\venv\\Scripts\\python.exe .\\main.py")
         print("使用 start.bat 启动程序 / Use start.bat to start the program.")
         os.system("pause")
         exit(0)
