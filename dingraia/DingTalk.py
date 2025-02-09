@@ -2721,7 +2721,7 @@ class Dingtalk:
                         if "ticket" not in uri:
                             uri = f"{uri}&ticket={urllib.parse.quote_plus(connection['ticket'])}"
                 try:
-                    async with websockets.connect(uri, extra_headers=headers) as websocket:
+                    async with websockets.connect(uri, additional_headers=headers) as websocket:
                         logger.success(f"[{task_name}] Websocket connected")
                         try:
                             async for raw_message in websocket:
