@@ -30,7 +30,7 @@ print("是否创建 Python 虚拟环境？/ Create Python virtual environment? (
 if input("> ") in ("y", "Y"):
     if platform.system() == "Windows":
         os.system("python -m venv venv")
-        os.system(r".\venv\python.exe -m pip install -r requirements.txt")
+        os.system(r".\venv\Scripts\python.exe -m pip install -r requirements.txt")
         with open("start.bat", "w", encoding="utf-8") as f:
             f.write(f"@echo off\n.\\venv\\Scripts\\python.exe .\\main.py")
         print("使用 start.bat 启动程序 / Use start.bat to start the program.")
