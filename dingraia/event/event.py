@@ -10,10 +10,15 @@ class BasicEvent:
     def __init__(self, raw_mes: str = "", dec_mes: Union[str, dict] = ""):
         self.raw_mes = raw_mes
         self.dec_mes = dec_mes
-        
-        
+
+
 class LoadComplete(BasicEvent):
     pass
+
+
+class GettingMessageError(BasicEvent):
+    error: str
+    errorCode: int
 
 
 class RadioComplete(BasicEvent):
