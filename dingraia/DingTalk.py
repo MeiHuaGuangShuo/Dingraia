@@ -175,6 +175,15 @@ class Dingtalk:
                 if isinstance(e, File):
                     msg = msg.mes
                     msg = [MessageChain(x) if not isinstance(x, File) else x for x in msg]
+        if isinstance(msg, Markdown):
+            if not msg.title.strip():
+                if not msg.text.strip():
+                    logger.warning("Markdown message is empty, ignored.")
+                    response.ok = False
+                    response.recall_type = "Not send request"
+                    return response
+                else:
+                    msg.title = "[Markdown]"
         if isinstance(msg, BaseElement):
             if not isinstance(target, OpenConversationId) and not isinstance(target, Member):
                 send_data = msg.data
@@ -749,12 +758,14 @@ class Dingtalk:
                             truncated = part[:maxAnswerLength]
                             await self.send_message(
                                 target,
-                                Markdown(f"{truncated}\n\n---\n\n[Stop for context limit {maxAnswerLength}]", truncated)
+                                Markdown(f"{truncated}\n\n---\n\n[Stop for context limit {maxAnswerLength}]",
+                                         f"{truncated}[Stop]")
                             )
                             buffer = remaining
                             break
                         else:
-                            await self.send_message(target, Markdown(part, part))
+                            if part.strip():
+                                await self.send_message(target, Markdown(part, part))
                             buffer = remaining
                     else:
                         break
@@ -762,7 +773,8 @@ class Dingtalk:
                         truncated = buffer[:maxAnswerLength]
                         await self.send_message(
                             target,
-                            Markdown(f"{truncated}\n\n---\n\n[Stop for context limit {maxAnswerLength}]", truncated)
+                            Markdown(f"{truncated}\n\n---\n\n[Stop for context limit {maxAnswerLength}]",
+                                     f"{truncated}[Stop]")
                         )
                         buffer = ""
                         break
@@ -1914,6 +1926,9 @@ class Dingtalk:
     @logger.catch
     async def bcc(self, data: dict):
         _e = await self.disPackage(data)
+        if not _e:
+            logger.warning(f"无法解析的回调: {json.dumps(data, indent=4, ensure_ascii=False)}")
+            return ""
         if _e.get('success'):
             _e['send_data'].append(self)
             if not isinstance(_e.get('event_type'), list):
@@ -1929,9 +1944,6 @@ class Dingtalk:
             events = [x for x in _e.get('event_type') if x is not None]
             for event in events:
                 await channel.radio(event, *_e.get('send_data'), traceId=traceId)
-        if not _e:
-            logger.warning("无法解包！")
-            return ""
         return _e.get('returns') or {'err': 0}
 
     @logger.catch
@@ -1943,6 +1955,23 @@ class Dingtalk:
                 bot = Bot(origin=data)
                 group = Group(origin=data)
                 member = Member(origin=data)
+                member.group = group
+                try:
+                    userStaffId = data.get("senderStaffId")
+                    if userStaffId:
+                        if cache.value_exist("user_info", "staffId", userStaffId):
+                            cache.execute("UPDATE user_info SET `name`=?, id=? WHERE staffId=?",
+                                          (member.name, member.id, member.staffId))
+                            cache.commit()
+                        else:
+                            cache.execute("INSERT INTO user_info VALUES (?,?,?,'','{}', ?)",
+                                          (member.id, member.name, member.staffId, time.time()))
+                            cache.commit()
+                except Exception as err:
+                    if is_debug:
+                        logger.exception(err)
+                    else:
+                        logger.error(f"Error while updating user info -> {err.__class__.__name__}: {err}")
                 bot.trace_id = group.trace_id = member.trace_id = traceId
                 if conversationType == "2":
                     at_users = [(userid.get("dingtalkId"), userid.get("staffId")) for userid in data.get("atUsers") if
@@ -1951,6 +1980,18 @@ class Dingtalk:
                     at_users = []
                 if data.get('msgtype') == 'text':
                     mes = data.get('text', {}).get('content')
+                    if not mes:
+                        if "errorMessage" in data:
+                            logger.error(f"Error while getting message: {data.get('errorMessage')}")
+                            event = GettingMessageError()
+                            event.error = data.get("errorMessage")
+                            event.errorCode = int(data.get("errorCode"))
+                            return {
+                                "success"   : True,
+                                "send_data" : [group, member, bot, traceId, event],
+                                "event_type": [GettingMessageError],
+                                "returns"   : ""
+                            }
                     out_mes = mes
                     for _ in out_mes:
                         if mes.startswith(" "):
@@ -2593,7 +2634,10 @@ class Dingtalk:
                     await asyncio.sleep(5)
                     return None
             except Exception as err:
-                logger.exception(f"{err.__class__.__name__}: {err}", err)
+                if is_debug:
+                    logger.exception(f"{err.__class__.__name__}: {err}", err)
+                else:
+                    logger.error(f"{err.__class__.__name__}: {err}")
                 await asyncio.sleep(5)
                 return None
             if not response.ok:
@@ -2738,7 +2782,10 @@ class Dingtalk:
                             logger.warning(f"[{task_name}] The stream connection will be reconnected after 5 seconds")
                             await asyncio.sleep(5)
                 except Exception as err:
-                    logger.exception(err)
+                    if is_debug:
+                        logger.exception(err)
+                    else:
+                        logger.error(f"{err.__class__.__name__}: {err}")
                     logger.warning(f"[{task_name}] The stream connection will be reconnected after 5 seconds")
                     await asyncio.sleep(5)
 
