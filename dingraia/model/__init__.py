@@ -169,6 +169,13 @@ class Member:
         if origin is not None:
             self.update_cache(origin=origin)
 
+    def calculate_id(self):
+        if self.origin_id:
+            self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (
+                    10 ** 10) + 1000 if self.origin_id else 0
+        else:
+            self.id = 0
+
     def update_cache(self, origin: dict):
         if origin.get('conversationType') == '1':
             if cache.value_exist("user_info", "id", str(self.id)):
