@@ -8,24 +8,17 @@ from dingraia.log import logger
 import aiohttp
 
 LLama_3_2 = "llama3.2"
-DeepSeek_R1_1_5_B = "deepseek-r1:1.5b"
-DeepSeek_R1_7_B = "deepseek-r1:7b"
-DeepSeek_R1_8_B = "deepseek-r1:8b"
-DeepSeek_R1_14_B = "deepseek-r1:14b"
-DeepSeek_R1_32_B = "deepseek-r1:32b"
-DeepSeek_R1_70_B = "deepseek-r1:70b"
-DeepSeek_R1_671_B = "deepseek-r1:671b"
 
 
-class Ollama(aiAPI):
+class LMStudio(aiAPI):
 
     _messages = []
 
     def __init__(
             self,
-            url: str = "http://localhost:11434",
+            url: str = "http://localhost:1234/v1",
             systemPrompt: str = "You are a helpful assistant.",
-            maxContextLength: int = 1000
+            maxContextLength: int = 4096
     ):
         if url.endswith("/"):
             url = url[:-1]
@@ -48,19 +41,34 @@ class Ollama(aiAPI):
             payload["model"] = model
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                        self.url + "/api/chat",
+                        self.url + "/chat/completions",
                         json=payload
                 ) as response:
                     if response.status != 200:
                         logger.error(
-                            f"Error in Ollama API: {response.status} {response.reason}, Response: {await response.text()}")
+                            f"Error in LMStudio API: {response.status} {response.reason}, Response: {await response.text()}")
                         raise StopIteration
                     answer = ""
+                    temp = ""
                     onThink = False
-                    async for d in streamProcessor(response=response, line_prefix=""):
+                    async for d in streamProcessor(response=response):
                         d: dict
                         if d:
-                            content = d["message"]["content"]
+                            content = d["choices"][0]["delta"].get("content", "")
+                            if not content:
+                                continue
+                            if not temp:
+                                if content.rfind("<") != -1 and content.rfind(">") == -1:
+                                    temp += content
+                                    continue
+                            else:
+                                temp += content
+                                if temp.rfind("<") != -1 and temp.rfind(">") == -1:
+                                    continue
+                                else:
+                                    content = temp
+                                    temp = ""
+
                             current_pos = 0
                             while current_pos < len(content):
                                 if onThink:
@@ -72,25 +80,20 @@ class Ollama(aiAPI):
                                             yield think_content
                                         current_pos = end_pos + len('</think>')
                                         onThink = False
-                                        # Process remaining content as normal
                                         remaining = content[current_pos:]
                                         if remaining:
                                             answer += remaining
                                             yield remaining
-                                        current_pos = len(content)  # Exit loop after processing
+                                        current_pos = len(content)
                                     else:
-                                        # Entire remaining content is part of think
                                         think_content = content[current_pos:]
                                         if not noThinkOutput:
                                             think_content = think_content.replace('\n', '\n> ')
                                             yield think_content
                                         current_pos = len(content)
-                                        # onThink remains True
                                 else:
-                                    # Look for <think> in remaining content
                                     start_pos = content.find('<think>', current_pos)
                                     if start_pos != -1:
-                                        # Process normal content before <think>
                                         normal_content = content[current_pos:start_pos]
                                         if normal_content:
                                             answer += normal_content
@@ -100,7 +103,6 @@ class Ollama(aiAPI):
                                             yield "> **思考** \n> \n> "
                                         onThink = True
                                     else:
-                                        # Process all remaining as normal
                                         normal_content = content[current_pos:]
                                         if normal_content:
                                             answer += normal_content

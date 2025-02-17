@@ -182,17 +182,16 @@ class OpenAI(aiAPI):
                         d: dict
                         if d:
                             reason_text = d["choices"][0]["delta"].get("reasoning_content")
-                            main_text = d["choices"][0]["delta"]["content"]
+                            main_text = d["choices"][0]["delta"].get("content")
                             if not answer.strip() and reason_text:
                                 onThink = True
-                            if onThink and not answer.strip().startswith("> **思考**"):
-                                answer += "> **思考**\n> \n> "
+                            if onThink and not answer.strip().startswith("> **思考**") and not noThinkOutput:
                                 yield "> **思考**\n> \n> "
                             if reason_text:
                                 if "\n" in reason_text:
                                     reason_text = reason_text.replace("\n", "\n> ")
-                                answer += reason_text
-                                yield reason_text
+                                if not noThinkOutput:
+                                    yield reason_text
                                 continue
                             if main_text:
                                 if onThink:
