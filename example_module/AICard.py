@@ -259,7 +259,7 @@ async def ai_chat(app: Dingtalk, member: Member, group: Group, message: MessageC
         ai_card = AICard()
         question = str(message)
         ai_card.set_response(mainAI.generateAnswerFunction(question, user=member, model=DeepSeek_V2_5))
-        if app.get_api_counts() < 2500:
+        if app.get_api_counts() >= 2500:
             if group.name == "Unknown":
                 group.name = member.name
                 group.id = member.id

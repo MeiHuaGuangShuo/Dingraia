@@ -118,6 +118,7 @@ class AICard(BaseCard):
                     continue
                 if not full_content:
                     yield c
+                    self.text += c
                     continue
                 self._texts.append(c)
                 content += c
