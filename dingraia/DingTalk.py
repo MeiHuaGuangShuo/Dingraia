@@ -717,6 +717,65 @@ class Dingtalk:
             logger.info(f"[SEND] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
         return resp
 
+    async def assistant_send_ai_card(
+            self,
+            event: AiAssistantMessage,
+            card: Union[AICard, str],
+            cardTemplateId: str = "8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema",
+            update_limit: int = 0,
+            key: str = "content",
+            maxAnswerLength: int = 8192,
+    ):
+        if isinstance(card, str):
+            tC = AICard()
+            tC.set_response(card, "stream")
+            card = tC
+            if not update_limit:
+                update_limit = 100
+
+        def gen(b: dict):
+            c = b['content']
+            t = b.copy()
+            t['content'] = json.dumps(c)
+            return t
+
+        body = {
+            "conversationToken": event.conversationToken,
+            "contentType"      : "ai_card",
+            "content"          : {
+                'templateId': cardTemplateId,
+                'cardData'  : {
+                    "key"       : key,
+                    "isFull"    : True,
+                    "isFinalize": False,
+                    "isError"   : False,
+                },
+                'options'   : {'componentTag': 'streamingComponent'}
+            }
+        }
+        try:
+            async for content in card.streaming_string(length_limit=update_limit):
+                body["content"]["cardData"]["value"] = content
+                res = await self.api_request.jpost("/v1.0/aiInteraction/reply", json=gen(body))
+                if is_debug:
+                    logger.debug(res)
+                if len(content) > maxAnswerLength:
+                    body["content"]["cardData"]["content"] = content + f"[Stop for context limit {maxAnswerLength}]"
+                    await self.api_request.jpost("/v1.0/aiInteraction/reply", json=gen(body))
+                    break
+        except Exception as err:
+            logger.exception(err)
+            body["content"]["cardData"]["value"] = "出错了，请稍后再试"
+            body["content"]["cardData"]["isError"] = True
+            await self.api_request.jpost("/v1.0/aiInteraction/reply", json=gen(body))
+        body["content"]["cardData"]["isFinalize"] = True
+        await self.api_request.jpost("/v1.0/aiInteraction/reply", json=gen(body))
+        if event.sender.id:
+            logger.info(f"[SEND][{event.sender.name}({int(event.sender)})] <- {repr(str(card.text))[1:-1]}",
+                        _inspect=['', '', ''])
+        else:
+            logger.info(f"[SEND] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
+
     async def send_ai_message(
             self,
             target: Union[OpenConversationId, Group, Member],
@@ -2022,8 +2081,12 @@ class Dingtalk:
                     mes = "Unknown Message"
                     message = MessageChain(mes)
                 message.trace_id = traceId
-                logger.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}",
-                            _inspect=['', '', ''])
+                if group.name != "Unknown" and group.name:
+                    logger.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}",
+                                _inspect=['', '', ''])
+                else:
+                    logger.info(f"[RECV][{member.name}({member.id})] -> {message}",
+                                _inspect=['', '', ''])
                 event = MessageEvent(data.get('msgtype'), data.get('msgId'), data.get('isInAtList'), message, group,
                                      member)
                 if traceId not in self.message_trace_id:
@@ -2122,6 +2185,27 @@ class Dingtalk:
                 "success"   : False,
                 "send_data" : [],
                 "event_type": [None],
+                "returns"   : ""
+            }
+        elif "requestLine" in data and "body" in data:
+            body = json.loads(data['body'])
+            event = AiAssistantMessage()
+            event.message = MessageChain(body['rawInput'])
+            event.openConversationId = OpenConversationId(body['openConversationId'])
+            member = Member()
+            member.unionId = body['unionId']
+            member.userId = body.get('userId')
+            await self.update_object(member)
+            event.sender = member
+            event.webhook = Webhook(body['sessionWebhook'], 600)  # 保守设计
+            event.corpId = body.get('corpId')
+            event.msgType = json.loads(body['inputAttribute']).get("msgType")
+            event.conversationToken = body['conversationToken']
+            event.data = body
+            return {
+                "success"   : True,
+                "send_data" : [event, member, event.message, event.openConversationId, event.webhook],
+                "event_type": [AiAssistantMessage],
                 "returns"   : ""
             }
         else:
@@ -2621,6 +2705,7 @@ class Dingtalk:
                     {'type': 'CALLBACK', 'topic': '/v1.0/im/bot/messages/get'},
                     {'type': 'CALLBACK', 'topic': '/v1.0/im/bot/messages/delegate'},
                     {'type': 'CALLBACK', 'topic': '/v1.0/card/instances/callback'},
+                    {'type': 'CALLBACK', 'topic': '/v1.0/graph/api/invoke'},
                 ],
                 'ua'           : f'Dingraia/{VERSION}',
                 'localIp'      : get_host_ip()
@@ -2653,18 +2738,30 @@ class Dingtalk:
 
         async def route_message(
                 json_message,
-                websocket: Union[websockets.WebSocketServer, websockets.WebSocketClientProtocol],
+                websocket: websockets.ClientConnection,
                 task_name: str
         ):
 
             async def response(message: dict):
                 if 'data' in message:
-                    message = {
-                        'code'   : 200,
-                        'headers': headers,
-                        'message': 'OK',
-                        'data'   : message['data'],
-                    }
+                    if "requestLine" in json.loads(message['data']) and "headers" in json.loads(message['data']):
+                        message = {
+                            'code'   : 200,
+                            'headers': headers,
+                            'message': '',
+                            'data'   : json.dumps({"response": {
+                                'body'      : json.dumps({}),
+                                'headers'   : {'Content-Type': 'application/json'},
+                                'statusLine': {'code': 200, 'reasonPhrase': 'OK'}
+                            }}),
+                        }
+                    else:
+                        message = {
+                            'code'   : 200,
+                            'headers': headers,
+                            'message': 'OK',
+                            'data'   : json.dumps({"response": message['data']}),
+                        }
                 else:
                     message = {
                         'code'   : 400,
@@ -2672,7 +2769,7 @@ class Dingtalk:
                         'message': 'Invalid request',
                         'data'   : {'success': False, 'reason': 'Access denied'},
                     }
-                await self.loop.create_task(websocket.send(json.dumps(message)))
+                await websocket.send(json.dumps(message))
 
             result = ''
             try:
