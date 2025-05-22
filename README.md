@@ -1,4 +1,4 @@
-此文档最后更新于25/2/5 `v2.1.0-Pre`
+此文档最后更新于25/5/22 `v2.1.0-Pre`
 
 # 破坏性更改
 
@@ -14,9 +14,9 @@
 
 # 这是什么？
 
-这个是一个关于能套用Graia-Ariadne部分项目的模块
-并运行的异步钉钉机器人代码，用来运行 基础 的Webhook类型
-的微型机器人，只实现了30%的功能，将来可能会完善。
+这个是一个在基础用例上模仿Graia-Ariadne模块
+并运行的异步钉钉机器人代码，用来运行 **基础** 的Webhook类型
+的微型机器人
 
 新功能/建议/Bug 请提出 [Issue](https://github.com/MeiHuaGuangShuo/Dingraia/issues/new/choose)
 
@@ -33,6 +33,7 @@
 - 应答机制
     - HTTP 回调
     - Stream 回调
+  - [AI 助理](#ai助理的配置)回复
 - 使用方式
     - 脚本运行
         - 机器人阻塞模式
@@ -180,6 +181,37 @@ def data_handler(data: dict) -> str:
 ```
 
 然后一并传入 `withPostUrl` 中
+
+### AI助理的配置
+
+对于AI助理，其原理和上面AI卡片配置大体相同，但是使用了不同的API。
+如果你需要流式更新的支持，你仍然需要配置一次AICard实例，
+或者如果你有现成的字符串需要发送，也可以按照如下方式发送 (API消耗同AI卡片)
+
+```python
+from dingraia.lazy import *
+from dingraia.aiAPI import OpenAI
+
+currentAI = OpenAI("sk-1145141919810", systemPrompt="你很有用")
+
+
+@channel.use(ListenEvent=ListenerSchema(listening_events=[AiAssistantMessage]))
+async def init(app: Dingtalk, event: AiAssistantMessage):
+    if str(event.message) == "/reset":
+        currentAI.clearHistory(event.sender)
+        await app.assistant_send_ai_card(event, card="重置成功")
+        # card 参数填入字符串则直接发送字符串，预计消耗2API
+        return
+    ai_card = AICard()
+    ai_card.set_response(
+        currentAI.generateAnswerFunction(str(event.message), user=event.sender, model="deepseek-ai/DeepSeek-V3"))
+    # 流式卡片配置和上面相同，但是使用的API不同，敬请注意
+    await app.assistant_send_ai_card(event, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema", card=ai_card,
+                                     update_limit=100)
+```
+
+关于可以获取的数据请查看 `dingraia.event.message.AiAssistantMessage`，当然也可以类似接受信息般使用，但是由于
+回调数据可能为空并不建议这样做
 
 ## 安装
 
@@ -363,6 +395,8 @@ def sync_example(app: Dingtalk):
 
 # 关于缓存
 
+**注意：非必要特别不建议禁用缓存，AI回复严重依赖缓存，禁用可能会导致AI功能报错**
+
 程序默认在遇到以下情况时更新可以更新的缓存：
 
 - 调用 `get_user`、`get_group` 的时候
@@ -370,7 +404,12 @@ def sync_example(app: Dingtalk):
 - 每次接收到信息时
 - 上传文件时 (默认配置，无法禁用(相同的文件还浪费那API干啥))
 
-如果需要设置禁言缓存或设置缓存时长，请在启动文件中添加额外参数
+对于以下行为会进行主动存储数据：
+
+- AI对话
+- API使用计数
+
+如果需要设置禁用缓存或设置缓存时长，请在启动文件中添加额外参数
 
 ```python
 from dingraia.lazy import *
