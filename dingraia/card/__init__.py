@@ -85,7 +85,10 @@ class AICard(BaseCard):
         if self.content_type not in ["auto", "full", "stream"]:
             raise ValueError(f"content_type must be 'auto', 'full', or 'stream', but got {self.content_type}")
         if not self.content_type:
-            self.content_type = "auto"
+            if isinstance(self.response, str):
+                self.content_type = "stream"
+            else:
+                self.content_type = "auto"
         if self.content_type == "auto":
             if len(self._texts) <= 1:
                 pass
@@ -174,7 +177,7 @@ class AICard(BaseCard):
         return {"content": self.text}
 
     def withPostUrl(
-            self, post_url: str, json: dict, data_handler: Callable[[dict], str], headers: dict = None,
+            self, post_url: str, json: dict, data_handler: Callable[[dict], Optional[str]], headers: dict = None,
             timeout: Optional[float] = None
     ):
         async def get_answer():

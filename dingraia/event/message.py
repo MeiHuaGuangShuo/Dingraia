@@ -13,10 +13,31 @@ class BasicMessage:
 class GroupMessage(BasicMessage):
     type = "GroupMessage"
     
-    message_chain: MessageChain
-    
     sender: Member
     
     group: Group
     
     bot: Bot
+
+
+class AiAssistantMessage(BasicMessage):
+    type = "AiAssistantMessage"
+
+    sender: Member
+
+    msgType: str
+
+    group: Group
+
+    webhook: Webhook
+
+    openConversationId: OpenConversationId
+
+    corpId: str
+
+    conversationToken: str
+
+    data: dict
+
+    def __getattr__(self, item):
+        return self.data.get(item)

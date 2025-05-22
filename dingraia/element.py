@@ -121,7 +121,7 @@ class Response:
 
     recallType: str = ""
 
-    recallOpenConversationId: str = None
+    recallOpenConversationId: OpenConversationId = None
 
     def json(self) -> dict:
         return json.loads(self.text)

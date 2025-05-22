@@ -92,7 +92,7 @@ async def asyncGenerator2list(asyncGenerator: AsyncGenerator) -> list:
 
 async def streamProcessor(
         response: aiohttp.ClientResponse,
-        data_handler: Optional[Callable] = None,
+        data_handler: Callable[[dict], Optional[str]] = None,
         line_prefix: str = "data:"
 ) -> AsyncGenerator[Union[str, dict], None]:
     """
@@ -121,7 +121,7 @@ async def streamProcessor(
 def processLine(
         line: str,
         prefix: str,
-        handler: Optional[Callable] = None
+        handler: Callable[[dict], Optional[str]] = None
 ) -> Optional[Union[str, dict]]:
     """将数据从流式数据中提取出来
 

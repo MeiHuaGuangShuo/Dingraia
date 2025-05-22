@@ -9,7 +9,7 @@ from ..model import Member, Group
 from ..log import logger
 from ..tools import streamProcessor
 from ..cache import cache
-from typing import Any, AsyncGenerator, Dict, Union, List
+from typing import Any, AsyncGenerator, Dict, Optional, Union, List
 
 
 class aiAPI:
@@ -22,11 +22,13 @@ class aiAPI:
 
     maxContextLength: int = 2048
 
-    def messages(self, user: Union[Member, int] = None) -> list:
-        if isinstance(user, Member) and user.id:
-            if str(user.id) not in self._userMessages:
-                self._userMessages[str(user.id)] = [{"role": "system", "content": self.systemPrompt}]
-            messages = self._userMessages[str(user.id)]
+    def messages(self, user: Union[Member, str] = None) -> list:
+        usrIdent = self.extractUser(user)
+        if isinstance(user, Member) and usrIdent:
+            if usrIdent not in self._userMessages:
+                prompt = self.extractUserPrompt(user)
+                self._userMessages[usrIdent] = [{"role": "system", "content": prompt or self.systemPrompt}]
+            messages = self._userMessages[usrIdent]
         else:
             if not self._messages:
                 self._messages.append({"role": "system", "content": self.systemPrompt})
@@ -38,28 +40,33 @@ class aiAPI:
                 texts = "".join([str(m.get("content", "")) for m in messages])
         return messages
 
-    def ChatPayloadBase(self, user: Union[Member, int] = None) -> dict:
+    def ChatPayloadBase(self, user: Union[Member, str] = None) -> dict:
         return {
             "messages": self.messages(user),
             "stream"  : True
         }
 
-    def clearHistory(self, user: Union[Member, int] = None):
+    def clearHistory(self, user: Union[Member, str] = None):
+        usrIdent = self.extractUser(user)
         if isinstance(user, Member):
-            if str(int(user)) in self._userMessages:
-                self._userMessages.pop(str(user.id))
+            if str(usrIdent) in self._userMessages:
+                self._userMessages[usrIdent].clear()
+                prompt = self.extractUserPrompt(user)
+                if prompt:
+                    self._userMessages[usrIdent] = [{"role": "system", "content": prompt}]
             return
         self._messages = [{"role": "system", "content": self.systemPrompt}]
         self._userMessages = {}
         self.saveHistory()
 
-    def deleteMessage(self, count: int = None, user: Union[Member, int] = None):
+    def deleteMessage(self, count: int = None, user: Union[Member, str] = None):
         if not count:
             self.clearHistory(user=user)
             return
         if isinstance(user, Member):
-            if str(int(user)) in self._userMessages:
-                mes = self._userMessages[str(user.id)]
+            usrIdent = self.extractUser(user)
+            if str(usrIdent) in self._userMessages:
+                mes = self._userMessages[str(usrIdent)]
                 msgLen = len(mes)
                 if msgLen <= 3:
                     mes = []
@@ -71,7 +78,7 @@ class aiAPI:
                         if m.get("role") == "user":
                             count -= 1
                         mes.pop(-1)
-                self._userMessages[str(user.id)] = mes
+                self._userMessages[str(usrIdent)] = mes
             return
         mes = self._messages
         msgLen = len(mes)
@@ -88,7 +95,30 @@ class aiAPI:
         self._messages = mes
         self.saveHistory()
 
-
+    def setSystemPrompt(
+            self, prompt: str, user: Union[Member, str] = None,
+            clearHistory: bool = False, bindPrompt: bool = False
+            ):
+        if isinstance(user, Member):
+            usrIdent = self.extractUser(user, "Null")
+            if clearHistory:
+                self._userMessages[usrIdent].clear()
+            self._userMessages[usrIdent].extend({"role": "system", "content": prompt})
+            if bindPrompt:
+                if not cache.value_exist("aiAPI", "name", "userPrompt"):
+                    data = {usrIdent: prompt}
+                    cache.execute("INSERT INTO aiAPI (name, data) VALUES ('userPrompt',?)", (data,))
+                else:
+                    data = cache.execute("SELECT data FROM aiAPI WHERE name = 'userPrompt'", result=True)[0][0]
+                    data = json.loads(data)
+                    data[usrIdent] = prompt
+                    cache.execute("UPDATE aiAPI SET data =? WHERE name = 'userPrompt'", (data,))
+        else:
+            self.systemPrompt = prompt
+            if clearHistory:
+                self._messages.clear()
+                self._messages.append({"role": "system", "content": self.systemPrompt})
+        self.saveHistory()
 
     def saveHistory(self):
         data = json.dumps({
@@ -108,6 +138,23 @@ class aiAPI:
         data = json.loads(data)
         self._messages = data.get("messages", [])
         self._userMessages = data.get("userMessages", {})
+
+    def extractUserPrompt(self, user: Optional[Member]) -> Optional[str]:
+        if not isinstance(user, Member):
+            return None
+        if not cache.value_exist("aiAPI", "name", "userPrompt"):
+            return None
+        usrIdent = self.extractUser(user)
+        data = cache.execute("SELECT data FROM aiAPI WHERE name = 'userPrompt'", result=True)[0][0]
+        data = json.loads(data)
+        prompt = data.get(usrIdent)
+        return prompt
+
+    @staticmethod
+    def extractUser(user: Optional[Member], default=None):
+        if not isinstance(user, Member):
+            return user or default
+        return user.unionId or default
 
 
 class OpenAI(aiAPI):
