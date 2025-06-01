@@ -1,12 +1,13 @@
 ﻿from typing import Any, TypeVar, List, Type
 
 from .element import At
+from ..element import TraceId
 
 _T = TypeVar('_T')
 
 
 class MessageChain:
-    trace_id: str = None
+    trace_id: TraceId = None
     
     def __init__(self, *elements, at: list = None):
         self.mes = [s for s in list(elements)]
