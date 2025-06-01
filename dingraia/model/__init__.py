@@ -192,6 +192,9 @@ class Member:
     def __str__(self) -> str:
         return self.name
 
+    def __repr__(self):
+        return f"{self.name}({self.id})"
+
 
 class Bot:
     traceId: TraceId = None
