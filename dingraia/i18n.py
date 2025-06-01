@@ -136,6 +136,18 @@ class I18n:
             "An error has been caught in function '{record[function]}', "
             "process '{record[process].name}' ({record[process].id}), "
             "thread '{record[thread].name}' ({record[thread].id}):"
+        ),
+        "WaitRadioMessageFinishedText"           : (
+            "等待消息处理完成...({timeout}s)",
+            "Waiting for message processing finished...({timeout}s)"
+        ),
+        "RadioMessageRemainText"                 : (
+            "等待剩余 {remain} 个消息处理完成...",
+            "Waiting for {remain} messages to be processed..."
+        ),
+        "RadioMessageFinishedText"               : (
+            "所有消息已经处理完成",
+            "All messages was processed."
         )
     }
 

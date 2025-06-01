@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import inspect
 from concurrent.futures import ThreadPoolExecutor
@@ -10,6 +11,7 @@ async def radio_done_callback(app: Dingtalk, trace_id: TraceId):
     if trace_id is not None:
         if trace_id in app.message_trace_id:
             with ThreadPoolExecutor() as pool:
+                async_tasks = []
                 for func in app.message_handle_complete_callback:
                     send = {}
                     sig = inspect.signature(func)
@@ -22,6 +24,8 @@ async def radio_done_callback(app: Dingtalk, trace_id: TraceId):
                             if isinstance(typ, param.annotation):
                                 send[name] = typ
                     if inspect.iscoroutinefunction(func):
-                        _ = app.loop.create_task(logger.catch(func)(**send))
+                        async_tasks.append(app.loop.create_task(logger.catch(func)(**send)))
                     else:
-                        app.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send))
+                        async_tasks.append(
+                            app.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send)))
+                await asyncio.gather(*async_tasks)

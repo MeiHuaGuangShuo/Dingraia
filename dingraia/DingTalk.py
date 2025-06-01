@@ -11,6 +11,7 @@ import re
 import signal
 import socket
 import sys
+import time
 import urllib.parse
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -70,14 +71,14 @@ def set_num():
         yield i
 
 
-def get_filename(response: ClientResponse, url: str) -> str:
+def get_filename(response: ClientResponse, url: str) -> Optional[str]:
     try:
         file_name = response.headers.get('content-disposition', '').split('filename=')[-1].strip('"')
         if file_name:
             return file_name
+        return None
     except Exception as e:
         logger.error(f"Failed to get filename from response: {e}")
-    finally:
         parsed_url = urllib.parse.urlparse(url)
         file_name = parsed_url.path.split('/')[-1]
         return file_name
@@ -282,7 +283,7 @@ class Dingtalk:
             url = f"https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend"
             headers['x-acs-dingtalk-access-token'] = self.access_token
             logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
-            send_data['userIds'] = [target.staffid or target.staffId]
+            send_data['userIds'] = [target.staffid or target.staffId]  # NOQA
             send_data['robotCode'] = self.config.bot.robotCode
             response.recallType = "personal"
         elif isinstance(target, Webhook):
@@ -540,10 +541,10 @@ class Dingtalk:
         }
         if isinstance(target, Member):
             body['openSpaceId'] = f"dtv1.card//IM_ROBOT.{target.staffid}"
-            body["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT", "robotCode": self.config.bot.appKey}
+            body["imRobotOpenDeliverModel"] = {"spaceType": "IM_ROBOT", "robotCode": self.config.bot.appKey}  # NOQA
         else:
             body['openSpaceId'] = f"dtv1.card//IM_GROUP.{self._openConversationId2str(target)}"
-            body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}
+            body["imGroupOpenDeliverModel"] = {"robotCode": self.config.bot.appKey}  # NOQA
         resp = await self.api_request.post('/v1.0/card/instances/deliver', json=body)
         if not resp.ok:
             errCode = (await resp.json()).get("errcode")
@@ -1213,7 +1214,7 @@ class Dingtalk:
         if name:
             data['name'] = name
         if hide_mobile is not None:
-            data['hide_mobile'] = hide_mobile
+            data['hide_mobile'] = hide_mobile  # NOQA
         if telephone:
             data['telephone'] = str(telephone)
         if job_number:
@@ -1235,15 +1236,15 @@ class Dingtalk:
                 dept_id_list = [dept_id_list]
             data['dept_id_list'] = ",".join([str(x) for x in dept_id_list])
         if dept_title_list:
-            data['dept_title_list'] = dept_title_list
+            data['dept_title_list'] = dept_title_list  # NOQA
         if dept_order_list:
-            data['dept_order_list'] = dept_order_list
+            data['dept_order_list'] = dept_order_list  # NOQA
         if extension:
-            data['extension'] = extension
+            data['extension'] = extension  # NOQA
         if senior_mode is not None:
-            data['senior_mode'] = senior_mode
+            data['senior_mode'] = senior_mode  # NOQA
         if hired_date:
-            data['hired_date'] = int(hired_date)
+            data['hired_date'] = int(hired_date)  # NOQA
         if language:
             data['language'] = language
         if force_update_fields:
@@ -1391,35 +1392,35 @@ class Dingtalk:
         if icon is not None:
             data['icon'] = await self._file2mediaId(icon)
         if mention_all_authority is not None:
-            data['mention_all_authority'] = 1 if mention_all_authority else 0
+            data['mention_all_authority'] = 1 if mention_all_authority else 0  # NOQA
         if show_history_type is not None:
-            data['show_history_type'] = 1 if show_history_type else 0
+            data['show_history_type'] = 1 if show_history_type else 0  # NOQA
         if validation_type is not None:
-            data['validation_type'] = 1 if validation_type else 0
+            data['validation_type'] = 1 if validation_type else 0  # NOQA
         if searchable is not None:
-            data['searchable'] = 1 if searchable else 0
+            data['searchable'] = 1 if searchable else 0  # NOQA
         if chat_banned_type is not None:
-            data['chat_banned_type'] = 1 if chat_banned_type else 0
+            data['chat_banned_type'] = 1 if chat_banned_type else 0  # NOQA
         if management_type is not None:
-            data['management_type'] = 1 if management_type else 0
+            data['management_type'] = 1 if management_type else 0  # NOQA
         if only_admin_can_ding is not None:
-            data['only_admin_can_ding'] = 1 if only_admin_can_ding else 0
+            data['only_admin_can_ding'] = 1 if only_admin_can_ding else 0  # NOQA
         if all_members_can_create_mcs_conf is not None:
-            data['all_members_can_create_mcs_conf'] = 1 if all_members_can_create_mcs_conf else 0
+            data['all_members_can_create_mcs_conf'] = 1 if all_members_can_create_mcs_conf else 0  # NOQA
         if all_members_can_create_calendar is not None:
-            data['all_members_can_create_calendar'] = 1 if all_members_can_create_calendar else 0
+            data['all_members_can_create_calendar'] = 1 if all_members_can_create_calendar else 0  # NOQA
         if group_email_disabled is not None:
-            data['group_email_disabled'] = 1 if group_email_disabled else 0
+            data['group_email_disabled'] = 1 if group_email_disabled else 0  # NOQA
         if only_admin_can_set_msg_top is not None:
-            data['only_admin_can_set_msg_top'] = 1 if only_admin_can_set_msg_top else 0
+            data['only_admin_can_set_msg_top'] = 1 if only_admin_can_set_msg_top else 0  # NOQA
         if add_friend_forbidden is not None:
-            data['add_friend_forbidden'] = 1 if add_friend_forbidden else 0
+            data['add_friend_forbidden'] = 1 if add_friend_forbidden else 0  # NOQA
         if group_live_switch is not None:
-            data['group_live_switch'] = 1 if group_live_switch else 0
+            data['group_live_switch'] = 1 if group_live_switch else 0  # NOQA
         if members_to_admin_chat is not None:
-            data['members_to_admin_chat'] = 1 if members_to_admin_chat else 0
+            data['members_to_admin_chat'] = 1 if members_to_admin_chat else 0  # NOQA
         if plugin_customize_verify is not None:
-            data['plugin_customize_verify'] = 1 if plugin_customize_verify else 0
+            data['plugin_customize_verify'] = 1 if plugin_customize_verify else 0  # NOQA
         if access_token:
             res = await url_res(
                 f'https://oapi.dingtalk.com/topapi/im/chat/scenegroup/update?access_token={access_token}',
@@ -1745,16 +1746,16 @@ class Dingtalk:
     @staticmethod
     class log:
         def info(*mes):
-            logger.info(*mes)
+            logger.info(*mes, _inspect=["", "", ""])
 
         def debug(*mes):
-            logger.debug(*mes)
+            logger.debug(*mes, _inspect=["", "", ""])
 
         def warning(*mes):
-            logger.warning(*mes)
+            logger.warning(*mes, _inspect=["", "", ""])
 
         def success(*mes):
-            logger.success(*mes)
+            logger.success(*mes, _inspect=["", "", ""])
 
     async def upload_file(self, file: Union[Path, str, File]) -> File:
         """上传一个文件到钉钉并获取mediaId
@@ -2202,6 +2203,7 @@ class Dingtalk:
             event.msgType = json.loads(body['inputAttribute']).get("msgType")
             event.conversationToken = body['conversationToken']
             event.data = body
+            self.log.info(f"[RECV][{repr(member)}] -> {event.message}")
             return {
                 "success"   : True,
                 "send_data" : [event, member, event.message, event.openConversationId, event.webhook],
@@ -2573,7 +2575,7 @@ class Dingtalk:
                 self._loop.add_signal_handler(
                     signal.SIGINT,
                     self.stop_for_signal  # 注意这里不要带括号，传递函数引用
-                )
+                )  # NOQA
             except NotImplementedError:
                 # 处理某些特殊环境不支持的情况
                 signal.signal(signal.SIGINT, lambda sig, frame: self.stop_for_signal())
@@ -2943,10 +2945,26 @@ class Dingtalk:
         exit_signal = True
         self._loop.call_soon_threadsafe(
             lambda: self._loop.create_task(self.stop())
-        )
+        )  # NOQA
 
     async def stop(self):
         logger.info(i18n.StoppingDingraiaText)
+        channel.onStop = True
+        channelTimeout = time.time() + self.config.waitRadioMessageFinishedTimeout
+        if channel.pendingRadios:
+            lastNotFinishedTasks = 0
+            logger.info(i18n.WaitRadioMessageFinishedText.format(timeout=self.config.waitRadioMessageFinishedTimeout))
+            while time.time() < channelTimeout:
+                pendingTasks = len([t for t in channel.pendingRadios if not t.done()])
+                if not pendingTasks:
+                    logger.success(i18n.RadioMessageFinishedText)
+                    break
+                if lastNotFinishedTasks != pendingTasks:
+                    logger.info(i18n.RadioMessageRemainText.format(remain=pendingTasks))
+                    lastNotFinishedTasks = pendingTasks
+                await asyncio.sleep(0.5)
+            else:
+                logger.warning("Wait timeout, stopped.")
         if isinstance(self._clientSession, ClientSession) and not self._clientSession.closed:
             await self._clientSession.close()
         if hasattr(self, '_runner'):

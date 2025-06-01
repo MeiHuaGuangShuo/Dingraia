@@ -14,6 +14,8 @@ from ..event.event import *
 class Channel:
     reg_event = {}
     pool: ThreadPoolExecutor = None
+    onStop = False
+    pendingRadios: List[asyncio.Task] = []
 
     def __init__(self) -> None:
         pass
@@ -40,6 +42,8 @@ class Channel:
     async def radio(self, RadioEvent, *args, async_await: bool = False, traceId: TraceId = None, **kwargs):
         # logger.debug(f"{type(RadioEvent) in self.reg_event} {RadioEvent} {type(RadioEvent)} {self.reg_event}")
         # logger.debug(traceId)
+        if self.onStop:
+            return
         if not traceId:
             for a in args:
                 if isinstance(a, (Group, Member)):
@@ -54,6 +58,11 @@ class Channel:
             if not self.pool:
                 self.pool = ThreadPoolExecutor()
 
+            def callback():
+                event = RadioComplete()
+                event.trace_id = traceId
+                loop.create_task(self.radio(RadioComplete, *[event, traceId, app], traceId=traceId))
+
             async def radio():
                 with ThreadPoolExecutor() as pool:
                     for f in modules:
@@ -66,7 +75,7 @@ class Channel:
                                     send[name] = typ
                         send.update(kwargs)
                         if inspect.iscoroutinefunction(f):
-                            async_tasks.append(loop.create_task(logger.catch(f)(**send)))
+                            async_tasks.append(logger.catch(f)(**send))
                         else:
                             async_tasks.append(loop.run_in_executor(pool, functools.partial(logger.catch(f), **send)))
                     should_callback = traceId and RadioEvent is not RadioComplete and app is not None
@@ -79,11 +88,20 @@ class Channel:
                             callback()
                         async_tasks.clear()
 
+                    def _done_callback(future: asyncio.Task):
+                        try:
+                            r = future.result()
+                        finally:
+                            try:
+                                self.pendingRadios.remove(future)
+                            except ValueError:
+                                pass
                     if async_tasks:
+                        t = loop.create_task(_callback())
+                        self.pendingRadios.append(t)
+                        t.add_done_callback(_done_callback)
                         if async_await:
-                            await _callback()
-                        else:
-                            _ = loop.create_task(_callback())
+                            await t
 
             app = None
             for e in args:
@@ -94,12 +112,9 @@ class Channel:
                     app = e
                     break
             async_await = True
-            _ = loop.create_task(radio())
-
-            def callback():
-                event = RadioComplete()
-                event.trace_id = traceId
-                loop.create_task(self.radio(RadioComplete, *[event, traceId, app], traceId=traceId))
+            task = loop.create_task(radio())
+            if async_await:
+                await task
 
     def set_channel(self):
         channel_instance.set(self)

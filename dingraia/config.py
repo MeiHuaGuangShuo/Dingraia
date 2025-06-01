@@ -101,6 +101,7 @@ class Config:
             autoBotConfig: bool = True,
             useDatabase: bool = True,
             dataCacheTime: DataCacheTime = None,
+            waitRadioMessageFinishedTimeout: int = 10,
             webRequestHandlers: List[Middleware] = None,
             raise_for_api_error: bool = True,
             language: str = None,
@@ -116,10 +117,14 @@ class Config:
             stream:
             autoBotConfig: 是否自动替换Bot的值
             raise_for_api_error: 是否在请求API失败时主动抛出异常
+            waitRadioMessageFinishedTimeout: 停止时等待广播消息处理完成的超时时间
+            webRequestHandlers: 自定义请求处理器
+            language: 语言
         """
         self.raise_for_api_error = raise_for_api_error
         self.useDatabase = useDatabase
         self.dataCacheTime = dataCacheTime or DataCacheTime()
+        self.waitRadioMessageFinishedTimeout = waitRadioMessageFinishedTimeout
         self.event_callback = event_callback
         self.customStreamConnect = customStreamConnect
         self.bot: Optional[Bot] = bot
