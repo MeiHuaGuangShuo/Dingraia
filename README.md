@@ -28,6 +28,8 @@
 
 支持应答机制 (HTTP, Stream, OutGoing未专门适配，理论支持)
 
+支持[等待消息处理完成后再退出](#等待消息处理完成)（含超时设置）
+
 ## 功能一览
 
 - 应答机制
@@ -435,6 +437,21 @@ app.get_user("<StaffId>", using_cache=True)
 
 当使用缓存时，`get_user`、`get_group` 将会在字典中添加 `dingraia_cache` 的键，
 内容为部分缓存的值，一般包括 `id`,`staffId`,`openConversationId`,`name`,`timeStamp`之类
+
+# 等待消息处理完成
+
+为了能在修改代码后重启框架的同时又能让框架不打断部分正在进行的输出，在config段新增了
+`waitRadioMessageFinishedTimeout`参数，使得在超时时间内可以
+继续等待所有已经进入处理队列的消息执行完成，直到所有消息处理完成或者超时
+
+```python
+from dingraia.config import Config
+
+config = Config(
+    ...,
+    waitRadioMessageFinishedTimeout=10
+)
+```
 
 # 兼容度
 
