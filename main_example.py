@@ -17,7 +17,9 @@ app = Dingtalk(
            event_callback=CallBack("AesKey",
                                    "Token",
                                    "CropId"),
-           # event_callback 仅为作为 HTTP 模式的时候使用的，Stream模式无需填写，保持原样即可，支持单/多Stream
+           # event_callback 仅为作为 HTTP 模式的时候使用的
+           # Stream模式无需填写，保持原样即可，支持单/多Stream
+           # 警告：多Stream的API功能支持目前为实验性功能，可能会遇到其他问题
            stream=[Stream('AppKey1',
                           'AppSecret1')]
            ))

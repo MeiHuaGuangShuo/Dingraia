@@ -71,6 +71,8 @@ class Group:
                                                                          self.id) if conversationId else OpenConversationId(
             '')
         """对话ID"""
+        self.member: Optional[Member] = None
+        """可能会存在的实际对象，在单聊内有效"""
         if origin is not None:
             self.update_cache()  # 为了防止特殊实例化数据覆盖缓存，只在有源请求才更新缓存
 

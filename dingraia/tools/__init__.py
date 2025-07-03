@@ -1,4 +1,6 @@
 import json
+import random
+import string
 from pathlib import Path
 from uuid import uuid1
 from io import BytesIO, BufferedReader
@@ -149,3 +151,16 @@ def processLine(
     except Exception as e:
         logger.exception(f"Error processing line: {line}", e)
         return None
+
+
+def randomChars(length: int) -> str:
+    """生成随机字符串
+
+    Args:
+        length: 字符串长度
+
+    Returns:
+        str: 随机字符串
+
+    """
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))

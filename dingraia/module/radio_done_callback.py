@@ -23,6 +23,19 @@ async def radio_done_callback(app: Dingtalk, trace_id: TraceId):
                         for typ in args:
                             if isinstance(typ, param.annotation):
                                 send[name] = typ
+                    notCall = False
+                    for name, param in params.items():
+                        if name not in send:
+                            if param.default == param.empty:
+                                try:
+                                    logger.warning(
+                                        f"Missing values for '{name}'({param.annotation}) at {func.__name__} at file {func.__code__.co_filename}, line {func.__code__.co_firstlineno}")
+                                except:
+                                    logger.warning(
+                                        f"Missing values for '{name}'({param.annotation}) at {func.__name__}")
+                                notCall = True
+                    if notCall:
+                        continue
                     if inspect.iscoroutinefunction(func):
                         async_tasks.append(app.loop.create_task(logger.catch(func)(**send)))
                     else:

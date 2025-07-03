@@ -111,17 +111,15 @@ class TimeStamp:
 
 
 class Response:
-    ok: bool = None
 
-    url: str = ""
-
-    text: str = ""
-
-    sendData: dict = {}
-
-    recallType: str = ""
-
-    recallOpenConversationId: OpenConversationId = None
+    def __init__(self):
+        self.ok: bool = False
+        self.url: str = ""
+        self.text: str = ""
+        self.sendData: dict = {}
+        self.recallType: str = ""
+        self.recallOpenConversationId: Optional[OpenConversationId] = None
+        self.errorReason: Optional[str] = None
 
     def json(self) -> dict:
         return json.loads(self.text)

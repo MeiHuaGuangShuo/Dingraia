@@ -11,7 +11,6 @@ import re
 import signal
 import socket
 import sys
-import time
 import urllib.parse
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -95,13 +94,14 @@ class Dingtalk:
     config: Config = None
     _loop: asyncio.AbstractEventLoop = None
     _access_token: AccessToken = None
+    _access_token_dict: Dict[str, AccessToken] = {}
     _clientSession: ClientSession = None
     api_request: "Dingtalk._api_request" = None
     oapi_request: "Dingtalk._oapi_request" = None
     async_tasks = []
     stream_checker = {}
     """用于检测重复的回调, 键为任务名, 值为容纳50个StreamID的列表"""
-    message_trace_id: Dict[TraceId, dict] = FixedSizeDict(max_size=200)
+    message_trace_id: Dict[TraceId, dict] = FixedSizeDict(max_size=500)
     """用于容纳发送的信息的追溯ID, 键为消息ID"""
     media_id_cache = FixedSizeDict(max_size=500)
     """用于容纳上传的MediaID, 键为文件SHA-256, 值为MediaID"""
@@ -118,6 +118,8 @@ class Dingtalk:
     cardInstanceCallBack: Dict[str, dict] = {}
     """卡片回调数据"""
     _running_mode: List[str] = []
+
+    _keepRunningAsyncSleepTime: float = 1.0
 
     _forbidden_request_method: Literal["none", "return", "raise"] = "none"
     """"""  # 忘了是干啥的了
@@ -231,7 +233,6 @@ class Dingtalk:
             target = await self.update_object(target)
             if isinstance(target, (Group, OpenConversationId)):
                 send_data['openConversationId'] = str(target.openConversationId)
-            headers['x-acs-dingtalk-access-token'] = self.access_token
         if isinstance(msg, MessageChain):
             if msg.include(At):
                 ats = msg.include(At)
@@ -254,14 +255,14 @@ class Dingtalk:
 
                 if isinstance(target, (OpenConversationId, Member, Webhook, Group)):
                     if isinstance(target, Group):
-                        if target.webhook._type == Member:
+                        if target.webhook._type == Member:  # NOQA
                             send_data = clean_at(send_data)
                     if isinstance(target, Member):
                         send_data = clean_at(send_data)
                     if isinstance(target, OpenConversationId):
                         send_data = clean_at(send_data)
                     if isinstance(target, Webhook):
-                        if target._type == Member:
+                        if target._type == Member:  # NOQA
                             send_data = clean_at(send_data)
         if not target:
             if not self.config.bot.GroupWebhookSecureKey or not self.config.bot.GroupWebhookAccessToken:
@@ -281,10 +282,14 @@ class Dingtalk:
                 return await self.send_message(target=target.openConversationId, *msg, headers=headers)
         elif isinstance(target, Member):
             url = f"https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend"
-            headers['x-acs-dingtalk-access-token'] = self.access_token
             logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
             send_data['userIds'] = [target.staffid or target.staffId]  # NOQA
             send_data['robotCode'] = self.config.bot.robotCode
+            if hasattr(target, 'traceId'):
+                traceId = target.traceId
+                if isinstance(traceId, TraceId):
+                    send_data['robotCode'] = self.message_trace_id.get(traceId, {}).get('appKey',
+                                                                                        self.config.bot.robotCode)
             response.recallType = "personal"
         elif isinstance(target, Webhook):
             if time.time() < target.expired_time:
@@ -292,7 +297,9 @@ class Dingtalk:
                 response.recall_type = "webhook"
             else:
                 logger.error(i18n.SpecificTemporaryWebhookUrlExpiredError)
-                return
+                response.errorReason = "Webhook url expired"
+                response.ok = False
+                return response
         elif isinstance(target, OpenConversationId):
             url = 'https://api.dingtalk.com/v1.0/robot/groupMessages/send'
             response.recallType = "group"
@@ -324,10 +331,32 @@ class Dingtalk:
                 else:
                     self.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send), ())
         try:
-            if '//oapi' in url and 'access_token' not in url:
-                resp = await self.oapi_request.post(url, json=send_data, headers=headers)
-            elif '//api' in url and 'access_token' not in url:
-                resp = await self.api_request.post(url, json=send_data, headers=headers)
+            if 'access_token' not in url:
+                switchAccessToken = None
+                if hasattr(target, 'traceId'):
+                    traceId = target.traceId
+                    if isinstance(traceId, TraceId):
+                        data = self.message_trace_id.get(traceId)
+                        if data:
+                            appKey = data.get('appKey')
+                            if appKey:
+                                if appKey in self._access_token_dict:
+                                    switchAccessToken = self._access_token_dict[appKey]
+                if switchAccessToken:
+                    with self.with_access_token(switchAccessToken):
+                        if '//oapi' in url:
+                            resp = await self.oapi_request.post(url, json=send_data, headers=headers)
+                        elif '//api' in url:
+                            resp = await self.api_request.post(url, json=send_data, headers=headers)
+                        else:
+                            resp = await url_res(url, 'POST', json=send_data, headers=headers, res='raw')
+                else:
+                    if '//oapi' in url:
+                        resp = await self.oapi_request.post(url, json=send_data, headers=headers)
+                    elif '//api' in url:
+                        resp = await self.api_request.post(url, json=send_data, headers=headers)
+                    else:
+                        resp = await url_res(url, 'POST', json=send_data, headers=headers, res='raw')
             else:
                 resp = await url_res(url, 'POST', json=send_data, headers=headers, res='raw')
             response.ok = resp.ok
@@ -660,6 +689,9 @@ class Dingtalk:
         """
         if not outTrackId:
             outTrackId = str(uuid.uuid1())
+        if isinstance(target, Group):
+            if target.member:
+                target = target.member
         await self.send_card(target=target, cardTemplateId=cardTemplateId, cardData=card.data, outTrackId=outTrackId)
         body = {
             "key"       : key,
@@ -673,6 +705,7 @@ class Dingtalk:
                 body["guid"] = str(uuid.uuid1())
                 body["content"] = content
                 res = await self.api_request.jput("/v1.0/card/streaming", json=body)
+                # logger.info(res)
                 cardCallBack = await self.get_card_data(outTrackId=outTrackId)
                 if cardCallBack:
                     if stopHandler:
@@ -794,6 +827,10 @@ class Dingtalk:
         Returns:
 
         """
+        if isinstance(target, Group):
+            if target.member:
+                target.name = target.member.name
+                target.id = target.member.id
         CODE_BLOCK_PATTERN = re.compile(r'(```.*?```)|(\n\n|\n> \n>)', re.DOTALL)
         buffer = ""
         in_code_block = False
@@ -802,7 +839,6 @@ class Dingtalk:
                 buffer += content
                 while True:
                     split_pos = -1
-                    last_match_end = 0
                     for match in CODE_BLOCK_PATTERN.finditer(buffer):
                         start, end = match.span()
                         if match.group(1):
@@ -810,7 +846,6 @@ class Dingtalk:
                         elif not in_code_block:
                             split_pos = end
                             break
-                        last_match_end = end
                     if split_pos != -1:
                         part = buffer[:split_pos]
                         remaining = buffer[split_pos:]
@@ -1913,7 +1948,7 @@ class Dingtalk:
             async with self.clientSession.get(downloadUrl) as resp:
                 with open(Path(path), 'wb') as fd:
                     async for chunk in resp.content.iter_chunked(512):
-                        fd.write(await chunk)
+                        fd.write(await chunk)  # NOQA
             return True
         else:
             raise DownloadFileError(f"Failed to get the download URL. Response: {res}")
@@ -1922,7 +1957,8 @@ class Dingtalk:
         """使用内置的Loop运行异步函数并返回结果"""
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
-    async def wait_message(self, waiter: Waiter, timeout: float = None):
+    @staticmethod
+    async def wait_message(waiter: Waiter, timeout: float = None):
         loop = asyncio.get_event_loop()
         future = loop.create_future()
 
@@ -1958,6 +1994,9 @@ class Dingtalk:
     def with_access_token(self, access_token: AccessToken):
         """临时使用AccessToken
 
+        Notes:
+            进行此操作会替换所有的AccessToken, 可能会影响其他操作
+
         Args:
             access_token: 临时使用的AccessToken对象
 
@@ -1967,6 +2006,8 @@ class Dingtalk:
         """
         raw_access_token = copy.deepcopy(self._access_token)
         self._access_token = access_token
+        self.api_request.app = self
+        self.oapi_request.app = self
         try:
             yield
         finally:
@@ -2016,6 +2057,10 @@ class Dingtalk:
                 group = Group(origin=data)
                 member = Member(origin=data)
                 member.group = group
+                if group.name == "Unknown":  # TODO 改变判断方法
+                    group.member = member
+                else:
+                    member.group = group
                 try:
                     userStaffId = data.get("senderStaffId")
                     if userStaffId:
@@ -2093,6 +2138,10 @@ class Dingtalk:
                 if traceId not in self.message_trace_id:
                     self.message_trace_id[traceId] = {}
                 self.message_trace_id[traceId]["items"] = [group, member, message, event, bot]
+                self.message_trace_id[traceId]["appKey"] = data.get("robotCode")
+                self.message_trace_id[traceId]["corpId"] = data.get("senderCorpId")
+                if data.get("robotCode") in self._access_token_dict:
+                    self.message_trace_id[traceId]["accessToken"] = self._access_token_dict[data.get("robotCode")]
                 return {
                     "success"   : True,
                     "send_data": [group, member, message, event, bot, traceId],
@@ -2174,6 +2223,8 @@ class Dingtalk:
             if traceId not in self.message_trace_id:
                 self.message_trace_id[traceId] = {}
             self.message_trace_id[traceId]["items"] = [res] if not isinstance(res, list) else res
+            if hasattr(res[0], "corpId"):
+                self.message_trace_id[traceId]["corpId"] = res[0].cropId
             return {
                 "success"   : True,
                 "send_data": ([res] if not isinstance(res, list) else res) + [traceId],
@@ -2485,6 +2536,7 @@ class Dingtalk:
                     return web.json_response(res)
                 else:
                     return web.Response(body=res)
+            return None
 
         all_routes = [
                          web.post('/', receive_data),
@@ -2587,7 +2639,7 @@ class Dingtalk:
         async def keep_running():
             try:
                 while True:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(self._keepRunningAsyncSleepTime)
             except asyncio.CancelledError:
                 return
 
@@ -2667,7 +2719,8 @@ class Dingtalk:
         if is_debug:
             DEBUG = "<yellow>Warning</>: <red>Debug mode is on!</>\n"
         logger.info(
-            "<-Dingraia-Color-Enable->" + "\n" * 2 + __topic + DINGRAIA_ASCII + f"{ver}\n\n" + announcement + "\n" + DEBUG)
+            "<-Dingraia-Color-Enable->" + "\n" * 2 + __topic + DINGRAIA_ASCII +
+            f"{ver}\n\n" + announcement + "\n" + DEBUG)
 
     def _create_stream(self, stream: Stream):
         """创建并开始一个异步Stream任务. 不推荐自行调用
@@ -2736,6 +2789,9 @@ class Dingtalk:
 
                     return False
                 return None
+            accessToken = AccessToken(AppKey=stream.AppKey, AppSecret=stream.AppSecret)
+            accessToken.refresh(True)
+            self._access_token_dict[stream.AppKey] = accessToken
             return http_body
 
         async def route_message(
@@ -2762,7 +2818,7 @@ class Dingtalk:
                             'code'   : 200,
                             'headers': headers,
                             'message': 'OK',
-                            'data'   : json.dumps({"response": message['data']}),
+                            'data': message['data'],
                         }
                 else:
                     message = {
@@ -2833,7 +2889,7 @@ class Dingtalk:
                                 connection = await open_connection(task_name, self.stream_connect.SignHandler)
                             else:
                                 raise ValueError(f"Incorrect signer param, consider use None to skip sign")
-                        except:
+                        except:  # NOQA
                             logger.exception("Error while signing the connection")
                             logger.warning("Please restart the program to retry.")
                             return
@@ -2865,7 +2921,7 @@ class Dingtalk:
                             uri = f"{uri}&ticket={urllib.parse.quote_plus(connection['ticket'])}"
                 try:
                     async with websockets.connect(uri, additional_headers=headers) as websocket:
-                        logger.success(f"[{task_name}] Websocket connected")
+                        logger.success(i18n.WebsocketConnectedText.format(task_name=task_name))
                         try:
                             async for raw_message in websocket:
                                 json_message = json.loads(raw_message)
@@ -2873,22 +2929,22 @@ class Dingtalk:
                                 if route_result == "disconnect":
                                     break
                         except asyncio.CancelledError:
-                            logger.warning(f"[{task_name}] Closing the websocket connections...")
+                            logger.warning(i18n.WebsocketClosingText.format(task_name=task_name))
                             await websocket.close()
                             break
                         except Exception as err:
                             logger.error(f"{err.__class__.__name__}: {err}")
-                            logger.warning(f"[{task_name}] The stream connection will be reconnected after 5 seconds")
+                            logger.warning(i18n.WebsocketRetryText.format(task_name=task_name, sec=5))
                             await asyncio.sleep(5)
                 except Exception as err:
                     if is_debug:
                         logger.exception(err)
                     else:
                         logger.error(f"{err.__class__.__name__}: {err}")
-                    logger.warning(f"[{task_name}] The stream connection will be reconnected after 5 seconds")
+                    logger.warning(i18n.WebsocketRetryText.format(task_name=task_name, sec=5))
                     await asyncio.sleep(5)
 
-            logger.info(f"[{task_name}] Stream connection was stopped.")
+            logger.info(i18n.WebSocketClosedText.format(task_name=task_name))
 
         try:
             no = next(_no)
@@ -3007,8 +3063,13 @@ class Dingtalk:
     async def coroutine_watcher(self, function, *args, **kwargs):
         stop = False
         stop_count = 0
+
+        @logger.catch(reraise=True)
+        async def wrapper(*_args, **_kwargs):
+            return await function(*_args, **_kwargs)
+
         while not stop:
-            task = self.loop.create_task(function(*args, **kwargs))
+            task = self.loop.create_task(wrapper(*args, **kwargs))
             self.async_tasks.append(task)
             create_time = time.time()
             while True:
@@ -3019,14 +3080,25 @@ class Dingtalk:
                 if task.done():
                     if not task.cancelled():
                         if task.exception():
-                            logger.error(task.exception())  # logger.exception 效果在这里是一样的
-                            logger.warning(f"Task {task} was ended with an error, trying to restart")
+                            runTime = time.time() - create_time
+                            if 1 < runTime < 1.05:
+                                runTime -= 1
+                            if runTime < 0.05:  # 1s为保持运行的循环持续时间，位于_start函数内
+                                runTime = f"{runTime * 1000:2f}ms"
+                                logger.error(
+                                    f"Function {function.__name__} at {function.__code__.co_filename}:{function.__code__.co_firstlineno} stopped too fast({runTime}), Program will not restart again.")
+                                stop = True
+                            else:
+                                logger.warning(
+                                    f"Function {function.__name__} at {function.__code__.co_filename}:{function.__code__.co_firstlineno} was ended with an error after {runTime:.2f}s, trying to restart")
                         else:
-                            logger.warning(f"Task {task} was ended without error, trying to restart")
+                            logger.warning(
+                                f"Function {function.__name__} at {function.__code__.co_filename}:{function.__code__.co_firstlineno} was ended without error, trying to restart")
                         self.async_tasks.remove(task)
                         if stop_count > 2:
                             if time.time() - create_time < 5:
-                                logger.error(f"Task {task} stopped too fast, Program will not restart again.")
+                                logger.error(
+                                    f"Function {function.__name__} at {function.__code__.co_filename}:{function.__code__.co_firstlineno} stopped too fast, Program will not restart again.")
                                 stop = True
                         stop_count += 1
                         break

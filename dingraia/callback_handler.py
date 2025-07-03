@@ -41,7 +41,7 @@ def callback_handler(app, event_body: dict, raw_body=None, trace_id=None):
         event = BasicEvent()
         event.dec_mes = event_body.to_dict()
         event.raw_mes = raw_body
-        return event
+        return [event]
     bsEvent = BasicEvent(raw_body, event_body.to_dict())
     event.trace_id = bsEvent.trace_id = trace_id
     return [event, bsEvent]
