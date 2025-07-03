@@ -1,4 +1,4 @@
-此文档最后更新于25/5/22 `v2.1.0-Pre`
+此文档最后更新于25/7/3 `v2.1.0-Pre`
 
 # 破坏性更改
 
@@ -94,6 +94,7 @@
     - **临时**切换全局默认 `AccessToken`
     - [用户/群组信息缓存](#关于缓存)
     - ~~即时载入/卸载模块~~ (存在 Bug，仅支持载入)
+  - 调用AI API时可以进行基于对话使用Token数量的负载均衡
 
 # 注意
 
@@ -474,6 +475,9 @@ config = Config(
 
 # 鸣谢
 
-特别感谢 [JetBrains](https://www.jetbrains.com/?from=Dingraia) 为 Dingraia 提供免费的 [PyCharm](https://www.jetbrains.com/pycharm/?from=Dingraia) 等 IDE 的授权  
+~~特别感谢 [JetBrains](https://www.jetbrains.com/?from=Dingraia) 为 Dingraia
+提供免费的 [PyCharm](https://www.jetbrains.com/pycharm/?from=Dingraia) 等 IDE 的授权~~
+
+嘤嘤嘤过期了
 [<img src=".github/jetbrains-variant-3.png" width="200"/>](https://www.jetbrains.com/?from=Dingraia)
 
