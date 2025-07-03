@@ -1,7 +1,9 @@
 """
 
 """
+import re
 import json
+import random
 
 import aiohttp
 
@@ -9,18 +11,76 @@ from ..model import Member, Group
 from ..log import logger
 from ..tools import streamProcessor
 from ..cache import cache
-from typing import Any, AsyncGenerator, Dict, Optional, Union, List
+from typing import Any, AsyncGenerator, Dict, Literal, Optional, Union, List
+
+
+class APIKeys:
+
+    def __init__(self, *keys: str, method: Literal["average", "balance"] = "average"):
+        self.keys = {}
+        self.data = {}
+        self.method = method
+
+        if method == "balance":
+            raise NotImplementedError("Balance method is not implemented yet.")
+
+        for k in keys:
+            self.keys[k] = 0
+
+    def getAllKey(self):
+        return list(self.keys.keys())
+
+    def getKey(self):
+        if len(self.keys.keys()) == 1:
+            return self.getAllKey()[0]
+        if self.method == "average":
+            return sorted(self.keys.items(), key=lambda x: x[1])[0][0]
+        elif self.method == "balance":
+            if "balance" not in self.data:
+                return sorted(self.keys.items(), key=lambda x: x[1])[0][0]
+            balance_dict = self.data['balance']
+            total_balance = sum(balance_dict.get(k, 0) for k in self.keys)
+
+            if total_balance <= 0:
+                return min(self.keys.items(), key=lambda x: x[1])[0]
+
+            total_used = sum(self.keys.values())
+            key_diff_list = []
+
+            for key in self.keys:
+                balance = balance_dict.get(key, 0)
+                balance_ratio = balance / total_balance
+                expected_used = balance_ratio * total_used
+                diff = expected_used - self.keys[key]
+                key_diff_list.append((key, diff, balance))
+
+            key_diff_list.sort(key=lambda x: (-x[1], -x[2]))
+            return key_diff_list[0][0]
+        logger.warning(f"API choice method '{self.method}' at {self} is not a valid value.")
+        return random.choice(self.getAllKey())
+
+    def addValue(self, key, add: int = 1):
+        if key not in self.keys:
+            raise ValueError(f"'{key}' is not in the key list")
+        self.keys[key] += add
+
+    def detail(self):
+        used = [x for x in self.keys.values() if x] or [0]
+        i = min(used)
+        a = max(used)
+        avg = sum(used) / len(used)
+        return i, a, avg
 
 
 class aiAPI:
 
-    _messages: List[dict] = []
-
-    _userMessages: Dict[str, list] = {}
-
-    systemPrompt: str = ""
-
-    maxContextLength: int = 2048
+    def __init__(self, systemPrompt: str = "You are a helpful assistant."):
+        self._messages: List[dict] = []
+        self._userMessages: Dict[str, list] = {}
+        self.systemPrompt = systemPrompt
+        self.maxContextLength: int = 2048
+        self.systemPromptProtect = True
+        self.systemPromptProtectPercent = 0.3
 
     def messages(self, user: Union[Member, str] = None) -> list:
         usrIdent = self.extractUser(user)
@@ -34,7 +94,11 @@ class aiAPI:
                 self._messages.append({"role": "system", "content": self.systemPrompt})
             messages = self._messages
         if len(messages) > 1:
-            texts = "".join([str(m.get("content", "")) for m in messages])
+            for m in messages:
+                if not isinstance(m, dict):
+                    logger.warning(f"Invalid message: {m}")
+                    messages.remove(m)
+            texts = "".join([str(m.get("content", "")) for m in messages if m.get("role") != "system"])
             while len(texts) > self.maxContextLength:
                 messages.pop(1)
                 texts = "".join([str(m.get("content", "")) for m in messages])
@@ -103,15 +167,17 @@ class aiAPI:
             usrIdent = self.extractUser(user, "Null")
             if clearHistory:
                 self._userMessages[usrIdent].clear()
-            self._userMessages[usrIdent].extend({"role": "system", "content": prompt})
+            self._userMessages[usrIdent].insert(0, {"role": "system", "content": prompt})
             if bindPrompt:
                 if not cache.value_exist("aiAPI", "name", "userPrompt"):
                     data = {usrIdent: prompt}
+                    data = json.dumps(data, indent=4)
                     cache.execute("INSERT INTO aiAPI (name, data) VALUES ('userPrompt',?)", (data,))
                 else:
                     data = cache.execute("SELECT data FROM aiAPI WHERE name = 'userPrompt'", result=True)[0][0]
                     data = json.loads(data)
                     data[usrIdent] = prompt
+                    data = json.dumps(data, indent=4)
                     cache.execute("UPDATE aiAPI SET data =? WHERE name = 'userPrompt'", (data,))
         else:
             self.systemPrompt = prompt
@@ -119,6 +185,20 @@ class aiAPI:
                 self._messages.clear()
                 self._messages.append({"role": "system", "content": self.systemPrompt})
         self.saveHistory()
+
+    def checkAnswerSimilar(self, answer: str, user: Union[Member, str] = None):
+        if not self.systemPromptProtect:
+            return False
+        if not user:
+            systemPrompt = self.systemPrompt
+        else:
+            systemPrompt = self.extractUserPrompt(user) or self.systemPrompt
+        result = re.split(r'[^\u4e00-\u9fffa-zA-Z0-9]+', systemPrompt)
+        result = [part for part in result if part and len(part) > 5 and not part.isnumeric()]
+        if len(list(filter(lambda x: x.lower() in answer.lower(), result))) / len(
+                result) > self.systemPromptProtectPercent:
+            return True
+        return False
 
     def saveHistory(self):
         data = json.dumps({
@@ -154,12 +234,10 @@ class aiAPI:
     def extractUser(user: Optional[Member], default=None):
         if not isinstance(user, Member):
             return user or default
-        return user.unionId or default
+        return user.unionId or user.staffId or default
 
 
 class OpenAI(aiAPI):
-
-    apiKey: str = ""
 
     baseUrl: str = "https://api.openai.com/v1"
 
@@ -167,17 +245,19 @@ class OpenAI(aiAPI):
 
     def __init__(
             self,
-            apiKey: str,
+            apiKey: Union[str, APIKeys],
             systemPrompt: str = "You are a helpful assistant.",
             maxContextLength: int = 2048,
             baseUrl: str = "https://api.openai.com/v1",
     ):
+        super().__init__(systemPrompt=systemPrompt)
+        if not isinstance(apiKey, APIKeys):
+            apiKey = APIKeys(apiKey)
         self.apiKey = apiKey
         if baseUrl:
             if baseUrl.endswith("/"):
                 baseUrl = baseUrl[:-1]
             self.baseUrl = baseUrl
-        self.systemPrompt = systemPrompt
         self.maxContextLength = maxContextLength
         self.loadHistory()
         if not self.messages():
@@ -187,7 +267,7 @@ class OpenAI(aiAPI):
         async with aiohttp.ClientSession() as session:
             async with session.get(
                     self.baseUrl + "/models",
-                    headers={"Authorization": f"Bearer {self.apiKey}"}
+                    headers={"Authorization": f"Bearer {self.apiKey.getKey()}"}
             ) as response:
                 data = await response.json()
                 data = data["data"]
@@ -201,6 +281,10 @@ class OpenAI(aiAPI):
     ) -> AsyncGenerator[str, Any]:
 
         async def generateAnswer():
+            currKey = self.apiKey.getKey()
+            if len(self.apiKey.keys.keys()) > 1:
+                logger.info(f"Select key {list(self.apiKey.keys.keys()).index(currKey) + 1}, "
+                            f"used {self.apiKey.keys[currKey]}, All avg: {self.apiKey.detail()[2]:.1f}")
             userMessage = {"role": "user", "content": question}
             if isinstance(user, Member):
                 userMessage["content"] = f"UserName: {user.name}, Message: {question}"
@@ -213,7 +297,7 @@ class OpenAI(aiAPI):
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                         self.baseUrl + "/chat/completions",
-                        headers={"Authorization": f"Bearer {self.apiKey}"},
+                        headers={"Authorization": f"Bearer {currKey}"},
                         json=payload
                 ) as response:
                     self.messages(user).append(preWriteAssistantMessage)
@@ -230,6 +314,11 @@ class OpenAI(aiAPI):
                         if d:
                             reason_text = d["choices"][0]["delta"].get("reasoning_content")
                             main_text = d["choices"][0]["delta"].get("content")
+                            if answer.strip() and len(answer.strip()) > 5:
+                                if self.checkAnswerSimilar(answer, user=user):
+                                    preWriteAssistantMessage["content"] = "{This message was oppose to legal rule.}"
+                                    self.saveHistory()
+                                    return
                             if not answer.strip() and reason_text:
                                 onThink = True
                             if onThink and not answer.strip().startswith("> **思考**") and not noThinkOutput:
@@ -246,6 +335,12 @@ class OpenAI(aiAPI):
                                     yield "\n\n"
                                 answer += main_text
                                 yield main_text
+                            if d['choices'][0]['finish_reason'] == "stop":
+                                if d.get('usage', {}).get('total_tokens'):
+                                    usedToken = d['usage']['total_tokens']
+                                    self.apiKey.addValue(currKey, usedToken)
+                                else:
+                                    self.apiKey.addValue(currKey)
                     if answer:
                         preWriteAssistantMessage["content"] = answer
                     else:

@@ -1,7 +1,9 @@
 """
 DeepSeek API
 """
-from dingraia.aiAPI import OpenAI
+from typing import Union
+
+from dingraia.aiAPI import APIKeys, OpenAI
 import aiohttp
 
 DeepSeek_Chat = "deepseek-chat"
@@ -12,14 +14,17 @@ class DeepSeek(OpenAI):
 
     _messages = []
 
-    def __init__(self, apiKey: str, systemPrompt: str = "You are a helpful assistant.", maxContextLength: int = 1024):
+    def __init__(
+            self, apiKey: Union[str, APIKeys], systemPrompt: str = "You are a helpful assistant.",
+            maxContextLength: int = 1024
+            ):
         super().__init__(apiKey, systemPrompt, maxContextLength, baseUrl="https://api.deepseek.com")
 
     async def getAccountBalance(self) -> tuple[float, float, float, str]:
-        async with (aiohttp.ClientSession() as session):
+        async with aiohttp.ClientSession() as session:
             async with session.get(
                     f"https://api.deepseek.com/user/balance",
-                    headers={"Authorization": f"Bearer {self.apiKey}"}
+                    headers={"Authorization": f"Bearer {self.apiKey.getKey()}"}
             ) as response:
                 data = await response.json()
                 if data.get("is_available"):

@@ -1,11 +1,10 @@
-from typing import Any, AsyncGenerator
+import asyncio
+from typing import Any, AsyncGenerator, Union
 
-from dingraia.model import Group, Member
-
-from dingraia.tools import streamProcessor
-from dingraia.aiAPI import OpenAI
-from dingraia.log import logger
 import aiohttp
+
+from dingraia.aiAPI import APIKeys, OpenAI
+from dingraia.model import Member
 
 DeepSeek_R1 = "deepseek-ai/DeepSeek-R1"
 DeepSeek_V3 = "deepseek-ai/DeepSeek-V3"
@@ -62,7 +61,7 @@ class SiliconFlow(OpenAI):
 
     def __init__(
             self,
-            apiKey: str,
+            apiKey: Union[APIKeys, str],
             systemPrompt: str = "You are a helpful assistant.",
             maxContextLength: int = 2048
     ):
@@ -72,8 +71,34 @@ class SiliconFlow(OpenAI):
             maxContextLength=maxContextLength,
             baseUrl="https://api.siliconflow.cn/v1"
         )
+        if self.apiKey.method == "balance":
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(self._initBalanceToAPIKeys())
+
+    async def _initBalanceToAPIKeys(self):
+        self.apiKey.data["balance"] = {}
+        for k in self.apiKey.getAllKey():
+            balance = await self.getAccountBalance(k)
+            self.apiKey.data["balance"][k] = balance[0]
 
     def generateAnswerFunction(
             self, question: str, model: str = DeepSeek_V3, user: Member = None, noThinkOutput: bool = False
     ) -> AsyncGenerator[str, Any]:
         return super().generateAnswerFunction(question, model, user, noThinkOutput)
+
+    async def getAccountBalance(self, apiKey: str = None) -> tuple[float, float, float]:
+        if not apiKey:
+            if len(self.apiKey.getAllKey()) != 1:
+                raise TypeError("APIKey must be specified when there are multiple/no APIKeys.")
+            apiKey = self.apiKey.getAllKey()[0]
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                    "https://api.siliconflow.cn/v1/user/info",
+                    headers={"Authorization": f"Bearer {apiKey}"}
+            ) as response:
+                data = await response.json()
+                if data.get("status"):
+                    return (data["data"]["totalBalance"], data["data"]["balance"],
+                            data["data"]["chargeBalance"])
+                return 0.0, 0.0, 0.0
