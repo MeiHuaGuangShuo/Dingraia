@@ -45,11 +45,15 @@ siliconFlow = SiliconFlow("your_api_key", systemPrompt="你是一个有用的助
 mainAI = siliconFlow
 aiChatMode = False  # 设置为 True 开启全量AI聊天模式
 
+
 @channel.use(ListenerSchema(listening_events=[GroupMessage]))
 async def ai_reply(app: Dingtalk, member: Member, group: Group, message: MessageChain):
     s_mes = str(message)
-    if s_mes.startswith("/ai "):
-        question = s_mes[4:]
+    if s_mes.startswith("/ai"):
+        if s_mes.startswith("/ai "):
+            question = s_mes[4:]
+        else:
+            question = "<No input>"
         ai_card = AICard()
         # 你的AI API地址。只支持 POST 方式
         # Your AI API url. Only support POST method
@@ -69,8 +73,10 @@ async def ai_reply(app: Dingtalk, member: Member, group: Group, message: Message
         # Configure the parsing method of the information flow,
         # the input is the JSON data of each information flow,
         # and the output is the text content of the information flow.
-        # 假设数据流为一下格式 / If the data flow is in the following format:
+        # 假设数据流为以下格式 / If the data flow is in the following format:
+        # ```text
         # data: {"mes": "你好"}
+        # ```
         # 则可以这样配置 / Then you can configure it like this:
         # data_handler = lambda data: data["mes"]
         # 你不需要考虑返回的数据是全量还是追加，程序会自动判断。仅在程序判断失误时才应该指定 AICard.content_type
@@ -93,7 +99,7 @@ async def ai_reply(app: Dingtalk, member: Member, group: Group, message: Message
         try:
             await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema",
                                    card=ai_card,
-                               update_limit=100)
+                                   update_limit=100)
         except dingraia.exceptions.ApiPermissionDeniedError as e:
             await app.send_message(group, MessageChain("机器人没有权限发送AI卡片，请查看报错信息并勾选对应权限"))
             logger.error(f"{e.__class__.__name__}: {e}")
@@ -259,10 +265,7 @@ async def ai_chat(app: Dingtalk, member: Member, group: Group, message: MessageC
         ai_card = AICard()
         question = str(message)
         ai_card.set_response(mainAI.generateAnswerFunction(question, user=member, model=DeepSeek_V2_5))
-        if app.get_api_counts() >= 2500:
-            if group.name == "Unknown":
-                group.name = member.name
-                group.id = member.id
+        if app.get_api_counts() >= 3000:
             await app.send_ai_message(target=group, card=ai_card)
             await asyncio.sleep(0.5)
             await app.send_message(group, Markdown("[重新生成](dtmd://dingtalkclient/sendMessage?content=/regenerate)  或  "
@@ -271,8 +274,6 @@ async def ai_chat(app: Dingtalk, member: Member, group: Group, message: MessageC
                                                    "[查看对话历史](dtmd://dingtalkclient/sendMessage?content=/history)"
                                                    ))
         else:
-            if group.name == "Unknown":
-                group = member
             await app.send_ai_card(target=group, cardTemplateId="8f250f96-da0f-4c9f-8302-740fa0ced1f5.schema",
                                    card=ai_card,
                                    update_limit=100)

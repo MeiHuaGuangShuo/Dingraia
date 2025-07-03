@@ -17,7 +17,7 @@ HELP_MARKDOWN = """\
  - `/fd` 发送 FeedCard 消息
  - `/audio` 发送语音消息
  - `/image` 发送图片消息
- - `/ai` 发送 AI 卡片
+ - `/ai [消息]` 发送测试 AI 卡片
 
 """
 
