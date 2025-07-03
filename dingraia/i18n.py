@@ -148,6 +148,22 @@ class I18n:
         "RadioMessageFinishedText"               : (
             "所有消息已经处理完成",
             "All messages was processed."
+        ),
+        "WebsocketConnectedText"                 : (
+            "[{task_name}] Stream连接已建立",
+            "[{task_name}] Websocket connected"
+        ),
+        "WebsocketClosingText"                   : (
+            "[{task_name}] 正在关闭Stream连接...",
+            "[{task_name}] Closing the websocket connections..."
+        ),
+        "WebsocketRetryText"                     : (
+            "[{task_name}] 将在 {sec} 秒后重新连接Stream服务",
+            "[{task_name}] The stream connection will be reconnected after {sec} seconds"
+        ),
+        "WebSocketClosedText"                    : (
+            "[{task_name}] Stream连接已关闭",
+            "[{task_name}] Stream connection was stopped."
         )
     }
 
