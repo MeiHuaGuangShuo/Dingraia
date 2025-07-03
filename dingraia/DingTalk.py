@@ -25,7 +25,6 @@ import websockets
 from aiohttp import ClientResponse, ClientSession, web
 from pymediainfo import MediaInfo
 
-from .waiter import Waiter
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .card import *
@@ -46,6 +45,7 @@ from .tools import write_temp_file
 from .tools.timer import format_time
 from .vars import *
 from .verify import get_token, url_res
+from .waiter import Waiter
 
 send_url = "https://oapi.dingtalk.com/robot/send?access_token={}&timestamp={}&sign={}"
 channel = Channel.current()
@@ -276,6 +276,9 @@ class Dingtalk:
             if time.time() < target.webhook.expired_time:
                 url = target.webhook.url
                 response.recall_type = "group webhook"
+                if target.member:
+                    target.name = target.member.name
+                    target.id = target.member.id
                 logger.info(f"[SEND][{target.name}({int(target)})] <- {repr(str(msg))[1:-1]}", _inspect=['', '', ''])
             else:
                 logger.warning(i18n.WebhookUrlExpiredWarning)
@@ -2051,13 +2054,13 @@ class Dingtalk:
     async def disPackage(self, data: dict) -> dict:
         traceId = TraceId(str(uuid.uuid4()))
         if "conversationType" in data:
-            conversationType = data.get("conversationType")
+            conversationType = data.get("conversationType")  # 1 单聊 2 群聊
             if conversationType is not None:
                 bot = Bot(origin=data)
                 group = Group(origin=data)
                 member = Member(origin=data)
                 member.group = group
-                if group.name == "Unknown":  # TODO 改变判断方法
+                if conversationType == "1":
                     group.member = member
                 else:
                     member.group = group
