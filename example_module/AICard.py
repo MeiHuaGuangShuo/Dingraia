@@ -3,6 +3,7 @@ from dingraia.lazy import *
 from dingraia.aiAPI.deepseek import DeepSeek, DeepSeek_R1
 from dingraia.aiAPI.ollama import Ollama, DeepSeek_R1_32_B, DeepSeek_R1_8_B
 from dingraia.aiAPI.siliconflow import SiliconFlow, DeepSeek_V2_5
+from dingraia.aiAPI import APIKeys
 from dingraia.waiter import Waiter
 
 example_text = """\
@@ -37,10 +38,17 @@ Genshin Impact is a promising game that is driving other similar games forward.
 Your question is {question}
 """
 
-# DeepSeek 示例 / DeepSeek example
+
 deepseek = DeepSeek("your_api_key", systemPrompt="你是一个有用的助手。", maxContextLength=1000)
 ollama = Ollama(systemPrompt="你是一个有用的助手。", maxContextLength=1000)
-siliconFlow = SiliconFlow("your_api_key", systemPrompt="你是一个有用的助手。", maxContextLength=4096)
+
+# 此处为实现负载均衡的代码
+api_keys = APIKeys(
+    "your_api_key1",
+    "your_api_key2"
+)
+
+siliconFlow = SiliconFlow(api_keys, systemPrompt="你是一个有用的助手。", maxContextLength=4096)
 
 mainAI = siliconFlow
 aiChatMode = False  # 设置为 True 开启全量AI聊天模式
