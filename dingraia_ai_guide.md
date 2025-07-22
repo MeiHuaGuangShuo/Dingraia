@@ -58,11 +58,31 @@ async def receive_message(app: Dingtalk, group: Group, message: MessageChain):
 
 ### 发送不同类型的消息
 
-#### 文本消息
+#### 发送消息/文件
 
 ```python
-await app.send_message(group, "这是一条文本消息")
+await app.send_message(group, MessageChain("这是一条文本消息"))
 ```
+
+`MessageChain` 为一份消息容器，可以包含At消息和文件对象和任意可以被__str__的对象，比如
+
+```python
+from dingraia.lazy import *
+
+MessageChain(At(member), "请查收您的文件", File("http://localhost/files"))
+```
+
+`File` 有两个实例化参数:
+
+- `def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None, fileName: str = None):`
+
+其中, `file` 可以是路径/打开的文件流(如open())，文件字节或者URL。
+有时候可能需要指定文件名才能成功上传，此时可以使用 `fileName` 指定文件名
+
+默认情况下使用 `app.send_message` 会自动上传文件，当然也可以使用
+内置的方法上传 `app.upload_file` ，使用方法见下文，会返回带mediaId
+的对象。所有上传的文件会**自动开启缓存**，对文件本体使用 `SHA-256` 哈希化后
+储存在数据库/内存中，第二次上传文件则会**直接返回**包含对应的mediaId的对象。
 
 #### Markdown 消息
 
@@ -99,16 +119,33 @@ await app.send_message(group, ActionCard(
 ))
 ```
 
+### 撤回消息
+
+```python
+res = app.send_message(OpenConversationId, MessageChain("你好"))
+app.recall_message(res)
+```
+
+注意：只能撤回通过API发送的消息（即通过 `OpenConversationId` 发送的消息，
+通过默认接收通道获取的对象直接发送是以 WebHook 形式发送的，但是如果发送的是文件则
+会自动转为API发送，此时可以被撤回）
+
 ## AI 功能集成
 
 ### 创建 AI 回复函数
 
 ```python
 from dingraia.aiAPI import OpenAI, APIKeys
-from dingraia.card import AICard
+from dingraia.lazy import *
 
 # 创建 AI 实例
+api_keys = APIKeys(
+  "key1",
+  "key2"
+)
 ai = OpenAI("your_api_key", systemPrompt="你是一个有用的助手。", maxContextLength=2048)
+# 或者使用 api_keys 达到负载均衡
+aiWithAverage = OpenAI(api_keys, systemPrompt="你是一个有用的助手。", maxContextLength=2048)
 
 
 @channel.use(ListenerSchema(listening_events=[GroupMessage]))
@@ -132,6 +169,11 @@ async def ai_reply(app: Dingtalk, group: Group, member: Member, message: Message
             card=ai_card,
             update_limit=100
         )
+        # 或者使用以下命令按段发送，不使用 API 发送，但是缺乏部分功能（如代码显示），适用于仅聊天
+        await app.send_ai_message(group, ai_card)
+        # 亦或者又是自己处理AI返回的内容
+        ai_text = await ai_card.completed_string()
+        # 以下自行处理后选择喜欢的方式发送
 ```
 
 ### 处理 AI 助手消息
@@ -350,7 +392,8 @@ async def multi_function_bot(app: Dingtalk, group: Group, member: Member, messag
 >
 > `card`: AICard实例，包含AI回复内容
 >
-> `update_limit`: 更新频率限制，单位为字符数，0表示不限制
+> `update_limit`: 更新频率限制，单位为字符数，0表示不限制。注意：此选项和API消耗量强相关，
+> 如需节省用量可调高数值或使用 `send_ai_message` 方法，此方法会按段发送 Markdown 消息代替 AI 卡片，节省 API 用量
 >
 > `key`: 卡片内容字段名，默认为"content"
 >

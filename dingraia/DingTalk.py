@@ -820,7 +820,7 @@ class Dingtalk:
             *,
             maxAnswerLength: int = 8192,
     ):
-        """通过Markdown消息发送AI消息，按段发送，最小API用量
+        """通过Markdown消息发送AI消息，按段发送，Webhook下无API用量
 
         Args:
             target: 发送的目标
