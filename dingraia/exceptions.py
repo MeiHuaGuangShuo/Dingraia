@@ -128,6 +128,11 @@ class APIRateLimitedError(DingtalkAPIError):
     code2 = 90018
 
 
+class NSFWMessageError(DingtalkAPIError):
+    solution = i18n.NSFWMessageErrorSolution
+    code = 430104
+
+
 err_code_map = {
     -1                                                  : DingtalkAPIError,
     "resource.not.found"                                : ResourceNotFoundError,
@@ -144,6 +149,7 @@ err_code_map = {
     90002                                               : APIRateLimitedError,
     90018                                               : APIRateLimitedError,
     400002                                              : WrongParameterError,
+    430104: NSFWMessageError,
 }
 
 

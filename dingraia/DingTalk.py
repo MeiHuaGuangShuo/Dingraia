@@ -365,6 +365,14 @@ class Dingtalk:
             response.ok = resp.ok
             response.text = await resp.text()
             response.url = url
+        except NSFWMessageError:
+            logger.error(i18n.NSFWMessageBlockedText)
+            await self.send_message(target, f"[{i18n.NSFWMessageBlockedText}]")
+            response.ok = False
+            response.text = ""
+            response.url = url
+            response.recall_type = "Not completed request"
+            return response
         except Exception as err:
             logger.exception(i18n.SendMessageFailedText, err)
             response.ok = False

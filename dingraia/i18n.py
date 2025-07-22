@@ -58,6 +58,10 @@ class I18n:
             "当前接口调用超过最高频率限制，触发全局限流，请稍后重试。",
             "The current interface call exceeds the highest frequency limit, triggering global throttling, please try again later.",
         ),
+        "NSFWMessageErrorSolution"               : (
+            "检测到NSFW内容，请检查并移除相关内容",
+            "Please check and remove the NSFW content.",
+        ),
         "WebhookUrlExpiredWarning"               : (
             "群组的Webhook链接已经过期！请检查来源IP是否合法、本地时钟是否正确或取消使用缓存。本次将使用API发送",
             "The webhook link for the group has expired! Please check if the source IP is legal, the local clock is correct, or cancel the use of cache. The message will be sent through the API.",
@@ -164,6 +168,10 @@ class I18n:
         "WebSocketClosedText"                    : (
             "[{task_name}] Stream连接已关闭",
             "[{task_name}] Stream connection was stopped."
+        ),
+        "NSFWMessageBlockedText"                 : (
+            "检测到NSFW内容，系统已自动屏蔽该消息",
+            "NSFW content detected, the message has been blocked automatically."
         )
     }
 
