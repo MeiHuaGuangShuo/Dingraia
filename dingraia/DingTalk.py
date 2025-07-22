@@ -2131,10 +2131,11 @@ class Dingtalk:
                     message = MessageChain(mes)
                 message.trace_id = traceId
                 if group.name != "Unknown" and group.name:
-                    logger.info(f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {message}",
+                    logger.info(
+                        f"[RECV][{group.name}({group.id})] {member.name}({member.id}) -> {repr(str(message))[1:-1]}",
                                 _inspect=['', '', ''])
                 else:
-                    logger.info(f"[RECV][{member.name}({member.id})] -> {message}",
+                    logger.info(f"[RECV][{member.name}({member.id})] -> {repr(str(message))[1:-1]}",
                                 _inspect=['', '', ''])
                 event = MessageEvent(data.get('msgtype'), data.get('msgId'), data.get('isInAtList'), message, group,
                                      member)
@@ -2257,7 +2258,7 @@ class Dingtalk:
             event.msgType = json.loads(body['inputAttribute']).get("msgType")
             event.conversationToken = body['conversationToken']
             event.data = body
-            self.log.info(f"[RECV][{repr(member)}] -> {event.message}")
+            self.log.info(f"[RECV][{repr(member)}] -> {repr(str(event.message))[1:-1]}")
             return {
                 "success"   : True,
                 "send_data" : [event, member, event.message, event.openConversationId, event.webhook],
