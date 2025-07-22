@@ -1,9 +1,11 @@
-import sqlite3
 import datetime
+import inspect
+import sqlite3
+from pathlib import Path
+from typing import Optional, Union
+
 from .exceptions import *
 from .log import logger
-from typing import Optional, Union
-from pathlib import Path
 
 
 class Cache:
@@ -26,12 +28,14 @@ class Cache:
         self.enable = True
         self.connect(databaseName=databaseName)
 
-    def execute(self, command: str, params=tuple(), *, result: bool = False):
+    def execute(self, command: str, params=tuple(), *, result: bool = False, noErrorOutput: bool = False):
         if self.enable:
             try:
                 cur = self.cursor.execute(command, params)
             except Exception as err:
-                logger.error(f"{err.__class__.__name__}: {err} command: {command}, params: {params}")
+                if not noErrorOutput:
+                    logger.error(f"{err.__class__.__name__}: {err} command: {command}, params: {params}",
+                                 _inspect=inspect.currentframe())
                 return ()
             if result:
                 return self.cursor.fetchall()
