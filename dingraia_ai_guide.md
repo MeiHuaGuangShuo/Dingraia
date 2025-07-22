@@ -9,6 +9,16 @@ AI 快速开发 Dingraia 模块。
 
 ## 快速开始
 
+### 在主程序导入模块
+
+```python
+from dingraia.saya import Saya
+
+saya = Saya.current()
+with saya.module_context():
+  saya.require(f"Module")
+```
+
 ### 基本结构
 
 每个 Dingraia 模块都遵循以下基本结构：
