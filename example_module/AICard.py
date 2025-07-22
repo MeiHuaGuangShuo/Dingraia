@@ -1,9 +1,9 @@
 import dingraia.exceptions
-from dingraia.lazy import *
-from dingraia.aiAPI.deepseek import DeepSeek, DeepSeek_R1
-from dingraia.aiAPI.ollama import Ollama, DeepSeek_R1_32_B, DeepSeek_R1_8_B
-from dingraia.aiAPI.siliconflow import SiliconFlow, DeepSeek_V2_5
 from dingraia.aiAPI import APIKeys
+from dingraia.aiAPI.deepseek import DeepSeek, DeepSeek_R1
+from dingraia.aiAPI.ollama import DeepSeek_R1_32_B, Ollama
+from dingraia.aiAPI.siliconflow import DeepSeek_V2_5, SiliconFlow
+from dingraia.lazy import *
 from dingraia.waiter import Waiter
 
 example_text = """\
@@ -243,9 +243,6 @@ async def ai_chat(app: Dingtalk, member: Member, group: Group, message: MessageC
         question = content.split("Message: ")[1]
         ai_card = AICard()
         ai_card.set_response(mainAI.generateAnswerFunction(question, user=member, model="deepseek-ai/DeepSeek-V2.5"))
-        if group.name == "Unknown":
-            group.name = member.name
-            group.id = member.id
         await app.send_ai_message(target=group, card=ai_card)
         await asyncio.sleep(0.5)
         await app.send_message(group, Markdown("[重新生成](dtmd://dingtalkclient/sendMessage?content=/regenerate)  或  "
