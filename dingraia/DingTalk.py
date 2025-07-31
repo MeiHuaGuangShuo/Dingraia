@@ -1307,8 +1307,8 @@ class Dingtalk:
         Returns:
 
         """
-        raise_status = self.config.raise_for_api_error
-        self.config.raise_for_api_error = False
+        raise_status = self.config.raiseForApiError
+        self.config.raiseForApiError = False
         openConversationId = self._openConversationId2str(openConversationId)
         raw = await self.get_group(openConversationId)
         if raw['title'].endswith('_mirror'):
@@ -1342,12 +1342,12 @@ class Dingtalk:
             else:
                 if times >= 10:
                     logger.error("无法找到合适的群主，复制暂停")
-                    self.config.raise_for_api_error = raise_status
+                    self.config.raiseForApiError = raise_status
                     return res
             if not res['success']:
                 logger.error(
                     f"Error while creating the new group! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
-                self.config.raise_for_api_error = raise_status
+                self.config.raiseForApiError = raise_status
                 return res
             open_conversation_id: dict = res['result']
             open_conversation_id = open_conversation_id['open_conversation_id']
@@ -1360,7 +1360,7 @@ class Dingtalk:
                 await asyncio.sleep(1)
             else:
                 logger.error("获取群信息失败超过 3 次!")
-                self.config.raise_for_api_error = raise_status
+                self.config.raiseForApiError = raise_status
                 return {'success': False}
             # invite_url = res['group_url']cidvFgTQiWWMHmvDrnf/ELoVA==
             # await self.send_message(OpenConversationId(openConversationId), MessageChain("新群链接: ", invite_url))
@@ -1375,7 +1375,7 @@ class Dingtalk:
                     f"Error while setting the admin(s)! Response: {json.dumps(res, indent=4, ensure_ascii=False)}")
         else:
             res = raw
-        self.config.raise_for_api_error = raise_status
+        self.config.raiseForApiError = raise_status
         return res
 
     async def update_group(
@@ -2382,7 +2382,7 @@ class Dingtalk:
                         resp = await response.json()
                         err_code = resp.get("errcode", resp.get("code"))
                         if err_code or not response.ok:
-                            if self.app.config.raise_for_api_error:
+                            if self.app.config.raiseForApiError:
                                 raise err_reason[err_code](resp)
                     if response.ok:
                         cache.add_openapi_count()
@@ -2467,7 +2467,7 @@ class Dingtalk:
                         resp = await response.json()
                         err_code = resp.get("errcode", resp.get("code"))
                         if err_code or not response.ok:
-                            if self.app.config.raise_for_api_error:
+                            if self.app.config.raiseForApiError:
                                 raise err_reason[err_code](resp)
                     if response.ok:
                         cache.add_openapi_count()

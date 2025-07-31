@@ -1,6 +1,8 @@
-from typing import Awaitable, Dict, List, Union, Callable, Coroutine, Any, Optional
+from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Union
+
 from aiohttp.web import Request
 from aiohttp.web_response import StreamResponse
+
 from .element import AppKey, AppSecret, EndPoint, Ticket
 from .i18n import i18n
 
@@ -103,7 +105,7 @@ class Config:
             dataCacheTime: DataCacheTime = None,
             waitRadioMessageFinishedTimeout: int = 10,
             webRequestHandlers: List[Middleware] = None,
-            raise_for_api_error: bool = True,
+            raiseForApiError: bool = True,
             language: str = None,
     ):
         """初始化Config
@@ -116,12 +118,12 @@ class Config:
             bot:
             stream:
             autoBotConfig: 是否自动替换Bot的值
-            raise_for_api_error: 是否在请求API失败时主动抛出异常
+            raiseForApiError: 是否在请求API失败时主动抛出异常
             waitRadioMessageFinishedTimeout: 停止时等待广播消息处理完成的超时时间
             webRequestHandlers: 自定义请求处理器
             language: 语言
         """
-        self.raise_for_api_error = raise_for_api_error
+        self.raiseForApiError = raiseForApiError
         self.useDatabase = useDatabase
         self.dataCacheTime = dataCacheTime or DataCacheTime()
         self.waitRadioMessageFinishedTimeout = waitRadioMessageFinishedTimeout
