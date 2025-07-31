@@ -28,7 +28,7 @@ from pymediainfo import MediaInfo
 from .VERSION import VERSION
 from .callback_handler import callback_handler
 from .card import *
-from .config import Config, CustomStreamConnect, Stream
+from .config import Config, CustomStreamConnect, FailedMessage, Stream
 from .element import *
 from .event import MessageEvent
 from .event.event import *
@@ -367,11 +367,14 @@ class Dingtalk:
             response.url = url
         except NSFWMessageError:
             logger.error(i18n.NSFWMessageBlockedText)
-            await self.send_message(target, f"[{i18n.NSFWMessageBlockedText}]")
+            if isinstance(self.config.sendMessageOnFailed, FailedMessage):
+                if self.config.sendMessageOnFailed.onNSFWMessage:
+                    await self.send_message(target, self.config.sendMessageOnFailed.onNSFWMessage)
             response.ok = False
             response.text = ""
             response.url = url
             response.recall_type = "Not completed request"
+            response.errorReason = i18n.NSFWMessageBlockedText
             return response
         except Exception as err:
             logger.exception(i18n.SendMessageFailedText, err)
@@ -3333,13 +3336,13 @@ class Dingtalk:
         return staffId
 
     async def update_object(self, obj: Union[Group, Member, OpenConversationId, Any]):
-        """从缓存中更新数据
+        """从缓存中更新数据。不启用数据库时则原样返回
 
         Args:
-            obj:
+            obj: 要更新的对象，可以是 Group, Member, OpenConversationId，其他的会原样返回
 
         Returns:
-
+            obj
         """
         if not self.config.useDatabase:
             return obj

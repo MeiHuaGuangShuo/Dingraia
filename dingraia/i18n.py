@@ -172,6 +172,11 @@ class I18n:
         "NSFWMessageBlockedText"                 : (
             "检测到NSFW内容，系统已自动屏蔽该消息",
             "NSFW content detected, the message has been blocked automatically."
+        ),
+        "DisableDatabaseWarningText"             : (
+            "警告：数据库被禁用，由于框架没有完整测试，可能会导致意料之外的BUG，请谨慎使用！",
+            "Warning: The database is disabled, due to the lack of complete testing, unexpected bugs may occur. "
+            "Please use it with caution!"
         )
     }
 

@@ -5,6 +5,8 @@ from aiohttp.web_response import StreamResponse
 
 from .element import AppKey, AppSecret, EndPoint, Ticket
 from .i18n import i18n
+from .log import logger
+from .message.chain import MessageChain
 
 
 class Bot:
@@ -91,6 +93,22 @@ class DataCacheTime:
         self.userUnionIdConventCacheTime = userUnionIdConventCacheTime
 
 
+class FailedMessage:
+
+    def __init__(
+            self,
+            *,
+            onNSFWMessage: Any = MessageChain(i18n.NSFWMessageWarningText),
+    ):
+        """指定在特定情况失败时要发送的消息，参数同 Dingtalk.send_message 的 msg 参数，None为禁用
+
+        Args:
+            onNSFWMessage: 检测到NSFW消息时要发送的消息
+
+        """
+        self.onNSFWMessage = onNSFWMessage
+
+
 class Config:
 
     def __init__(
@@ -106,6 +124,7 @@ class Config:
             waitRadioMessageFinishedTimeout: int = 10,
             webRequestHandlers: List[Middleware] = None,
             raiseForApiError: bool = True,
+            sendMessageOnFailed: Optional[FailedMessage] = None,
             language: str = None,
     ):
         """初始化Config
@@ -118,7 +137,9 @@ class Config:
             bot:
             stream:
             autoBotConfig: 是否自动替换Bot的值
+            useDatabase: 是否使用数据库，不使用数据库可能会导致异常
             raiseForApiError: 是否在请求API失败时主动抛出异常
+            sendMessageOnFailed: 是否在发送失败时发送替代信息
             waitRadioMessageFinishedTimeout: 停止时等待广播消息处理完成的超时时间
             webRequestHandlers: 自定义请求处理器
             language: 语言
@@ -129,15 +150,18 @@ class Config:
         self.waitRadioMessageFinishedTimeout = waitRadioMessageFinishedTimeout
         self.event_callback = event_callback
         self.customStreamConnect = customStreamConnect
+        self.sendMessageOnFailed = sendMessageOnFailed
         self.bot: Optional[Bot] = bot
         self.stream: Optional[List[Stream]] = stream
         self.webRequestHandlers = webRequestHandlers or []
-        if not isinstance(self.stream, list):
-            if self.stream is not None:
-                self.stream = [self.stream]
-            else:
-                self.stream = []
+        if self.stream is not None:
+            if not isinstance(self.stream, list):
+                self.stream = [self.stream]  # NOQA
+        else:
+            self.stream = []
         if language:
             i18n.setLang(language)
+        if not useDatabase:
+            logger.warning(i18n.DisableDatabaseWarningText)
         if len(self.stream) == 1 and autoBotConfig:
             self.bot = Bot(stream[0].AppKey, stream[0].AppSecret, stream[0].AppKey)

@@ -667,13 +667,29 @@ async def multi_function_bot(app: Dingtalk, group: Group, member: Member, messag
 - `dataCacheTime: DataCacheTime = None` - 数据缓存时间设置。
 - `waitRadioMessageFinishedTimeout: int = 10` - 机器人停止时等待消息处理完成的超时时间（秒），防止消息处理中断
 - `webRequestHandlers: List[Middleware] = None` - HTTP 请求中间件列表。
-- `raise_for_api_error: bool = True` - 调用钉钉 API 失败时是否主动抛出异常
+- `raiseForApiError: bool = True` - 调用钉钉 API 失败时是否主动抛出异常
+- `sendMessageOnFailed: Optional[FailedMessage] = None` - 是否在发送失败时发送替代信息
 - `language: str = None` - 框架日志和提示的语言（支持zh_CN、en_US，默认跟随系统）
 
 #### 方法
 
 -
-`def __init__(event_callback: CallBack = None, bot: Bot = None, stream: List[Stream] = None, *, customStreamConnect: CustomStreamConnect = None, autoBotConfig: bool = True, useDatabase: bool = True, dataCacheTime: DataCacheTime = None, waitRadioMessageFinishedTimeout: int = 10, webRequestHandlers: List[Middleware] = None, raise_for_api_error: bool = True, language: str = None)`
+
+`def __init__(event_callback: CallBack = None, bot: Bot = None, stream: List[Stream] = None, *, customStreamConnect: CustomStreamConnect = None, autoBotConfig: bool = True, useDatabase: bool = True, dataCacheTime: DataCacheTime = None, waitRadioMessageFinishedTimeout: int = 10, webRequestHandlers: List[Middleware] = None, raiseForApiError: bool = True, language: str = None)`
+
+> 实例化
+
+### FailedMessage 类
+
+指定在特定情况失败时要发送的消息，参数同 Dingtalk.send_message 的 msg 参数，None为禁用
+
+#### 属性
+
+- `onNSFWMessage` - 当预计NSFW信息时，默认为 `MessageChain(i18n.NSFWMessageWarningText)`
+
+### 方法
+
+- `def __init__(*, onNSFWMessage: Any = MessageChain(i18n.NSFWMessageWarningText))`
 
 > 实例化
 
