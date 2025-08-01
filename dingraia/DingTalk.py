@@ -119,6 +119,8 @@ class Dingtalk:
     """卡片回调数据"""
     _running_mode: List[str] = []
 
+    running_status: str = "Not Running"
+
     _keepRunningAsyncSleepTime: float = 1.0
 
     _forbidden_request_method: Literal["none", "return", "raise"] = "none"
@@ -2501,6 +2503,7 @@ class Dingtalk:
             logger.info(i18n.DingraiaExitedText)
 
     async def _start(self, port: int = None, routes: List[web.RouteDef] = None, host: str = None):
+        self.running_status = "Starting"
         self.http_routes += [
             web.get("/login/checkStatus", self.check_login_status),
             web.get("/oauth_login", self.oauth_login)
@@ -2647,6 +2650,7 @@ class Dingtalk:
                 # 处理某些特殊环境不支持的情况
                 signal.signal(signal.SIGINT, lambda sig, frame: self.stop_for_signal())
         await channel.radio(LoadComplete, self, async_await=True)
+        self.running_status = "Running"
         logger.info(i18n.DingraiaLoadCompleteText)
         if not self.loop.is_running():
             self.loop.run_forever()

@@ -12,12 +12,12 @@ from .message.chain import MessageChain
 class Bot:
 
     def __init__(
-            self, AppKey: str, AppSecret: str, robotCode: str, GroupWebhookAccessToken: str = None,
+            self, AppKey: str, AppSecret: str, robotCode: str = None, GroupWebhookAccessToken: str = None,
             GroupWebhookSecureKey: str = None
     ):
         self.appKey = AppKey
         self.appSecret = AppSecret
-        self.robotCode = robotCode
+        self.robotCode = robotCode or AppKey
         self.GroupWebhookAccessToken = GroupWebhookAccessToken
         self.GroupWebhookSecureKey = GroupWebhookSecureKey
 
