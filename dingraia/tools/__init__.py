@@ -1,14 +1,16 @@
 import json
 import random
 import string
-from pathlib import Path
-from uuid import uuid1
-from io import BytesIO, BufferedReader
+import time
 from contextlib import contextmanager
+from io import BufferedReader, BytesIO
+from pathlib import Path
 from typing import AsyncGenerator, Callable, Optional, Union
-from dingraia.log import logger
+from uuid import uuid1
 
 import aiohttp
+
+from dingraia.log import logger
 
 
 def ColoredFormatter(message: str):
@@ -63,7 +65,7 @@ def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str
         str: 临时文件路径
 
     """
-    fileName = Path.home() / ".dingraia" / f"temp_{uuid1()}.{file_extension}"
+    fileName = Path.home() / ".dingraia" / f"temp_{uuid1()}_{int(time.time() * 1000)}.{file_extension}"
     fileName.parent.mkdir(parents=True, exist_ok=True)
     with open(fileName, "wb") as f:
         if isinstance(content, BytesIO):
