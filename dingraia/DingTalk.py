@@ -16,7 +16,6 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from functools import reduce
-from io import BytesIO
 from typing import Any, Coroutine, Dict, Tuple, TypeVar
 from urllib.parse import urlencode, urljoin
 
@@ -1853,6 +1852,10 @@ class Dingtalk:
                             file.fileName = get_filename(resp, file.file)
                             file.file = await resp.read()
                             file.size = len(file.file)
+                    elif file.file.startswith("data:"):
+                        file.fileName = "DingraiaTempFile." + file.file.split('/', 1)[1].split(';', 1)[0]
+                        file.file = base64.b64decode(file.file.split(',', 1)[1])
+                        file.size = len(file.file)
             size = file.size
             file_type = file.fileType
             f = file.file
