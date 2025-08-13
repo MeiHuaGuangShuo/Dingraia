@@ -21,13 +21,18 @@
 注：由于钉钉策略调整，免费版组织API和Webhook/Stream用量调整至5000和3000。
 为了机器人能够持久运行，请尽量不要开启不相关/不需要的Webhook并调整调用措施
 
+# 新功能请求/回调适配
+
+如果你有需要适配的回调或一些支持的功能想添加至框架内，你可以自行编写代码并提交Pr以合并，
+或者提出[Issue](https://github.com/MeiHuaGuangShuo/Dingraia/issues/new/choose)
+对于API和回调的适配，请**至少**附上 `1` 条 Payload（即数据），最好能够提供3-10条，
+敏感信息请使用 `*` 掩盖，但是请尽力保持长度一致
+
 # 这是什么？
 
 这个是一个在基础用例上模仿Graia-Ariadne模块
 并运行的异步钉钉机器人代码，用来运行 **基础** 的Webhook类型
 的微型机器人
-
-新功能/建议/Bug 请提出 [Issue](https://github.com/MeiHuaGuangShuo/Dingraia/issues/new/choose)
 
 # 特点
 
@@ -477,6 +482,14 @@ config = Config(
 通过Stream模式转发钉钉服务器的消息到WebSocket和Webhook，支持本项目的连接。
 > 配置方法在 `main_example.py` 中有写，请自行配置
 
+[DingraiaPHP](https://github.com/lxyddice/DingraiaPHP) -
+一个PHP的钉钉小程序框架，易用易开发
+> 作者因为某些原因已经停止更新
+
+[DingraiaPHP-Next](https://github.com/alanwang233233/DingraiaPHP-Next) -
+DingraiaPHP的续作，仍在开发中
+> 由 `DingraiaPHP` 的好友接力开发中...
+
 # 最后要说
 
 本项目基于[Graia](https://github.com/GraiaProject/Ariadne)QQ机器人框架模仿开发，
@@ -487,6 +500,6 @@ config = Config(
 ~~特别感谢 [JetBrains](https://www.jetbrains.com/?from=Dingraia) 为 Dingraia
 提供免费的 [PyCharm](https://www.jetbrains.com/pycharm/?from=Dingraia) 等 IDE 的授权~~
 
-嘤嘤嘤过期了
+嘤嘤嘤过期了TwT ，但是很好用所以还是推荐一下w
 [<img src=".github/jetbrains-variant-3.png" width="200"/>](https://www.jetbrains.com/?from=Dingraia)
 
