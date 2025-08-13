@@ -3,11 +3,12 @@ import hashlib
 import json
 import os
 import warnings
+from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, Iterable, List, Union
 
-from ..model import Member
 from ..log import logger
+from ..model import Member
 
 
 class File:
@@ -22,12 +23,12 @@ class File:
     mediaId = None
     
     downloadCode: str = None
-    
-    def __init__(self, file: Union[Path, BinaryIO, bytes, str] = None, fileName: str = None):
+
+    def __init__(self, file: Union[Path, BinaryIO, BytesIO, bytes, str] = None, fileName: str = None):
         self.fileName = None
         if file:
             if isinstance(file, (Path, str)):
-                if isinstance(file, str) and file.startswith('http'):
+                if isinstance(file, str) and (file.startswith('http') or not Path(file).is_file()):
                     self.file = file
                     self.size = 0
                     self.fileName = None
@@ -43,6 +44,11 @@ class File:
                     self.size = len(self.file.read())
                 elif isinstance(self.file, bytes):
                     self.size = len(self.file)
+                elif isinstance(self.file, BytesIO):
+                    self.size = len(self.file.getvalue())
+                else:
+                    warnings.warn("Unsupported file type: %s" % type(self.file), UserWarning)
+                    self.size = len(self.file.read())
         self.fileName = fileName or self.fileName
         self.mediaId = None
         self.fileType = 'file'
