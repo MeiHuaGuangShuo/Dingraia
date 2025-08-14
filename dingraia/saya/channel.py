@@ -4,11 +4,10 @@ import inspect
 import itertools
 from concurrent.futures import ThreadPoolExecutor
 
-from ..log import logger
-
 from .builtins.broadcast.schema import ListenerSchema
 from .context import channel_instance
 from ..event.event import *
+from ..log import logger
 
 
 class Channel:
@@ -71,6 +70,9 @@ class Channel:
                         params = sig.parameters
                         for name, param in params.items():
                             for typ in args:
+                                if param.annotation == "Dingtalk":
+                                    send[name] = app
+                                    continue
                                 if isinstance(typ, param.annotation):
                                     send[name] = typ
                         send.update(kwargs)
@@ -111,7 +113,7 @@ class Channel:
                 if check.__name__ == "Dingtalk":
                     app = e
                     break
-            async_await = True
+            # async_await = True
             task = loop.create_task(radio())
             if async_await:
                 await task
