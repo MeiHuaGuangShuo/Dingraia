@@ -1,6 +1,3 @@
-import asyncio
-import functools
-import inspect
 from concurrent.futures import ThreadPoolExecutor
 
 from dingraia.lazy import *
@@ -8,7 +5,7 @@ from dingraia.lazy import *
 
 @channel.use(ListenerSchema(listening_events=[RadioComplete]))
 async def radio_done_callback(app: Dingtalk, trace_id: TraceId):
-    if trace_id is not None:
+    if trace_id is not None and app.message_handle_complete_callback:
         if trace_id in app.message_trace_id:
             with ThreadPoolExecutor() as pool:
                 async_tasks = []
