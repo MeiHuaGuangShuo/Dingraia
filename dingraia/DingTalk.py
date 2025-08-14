@@ -116,6 +116,10 @@ class Dingtalk:
     """OAuth数据，键为uuid"""
     cardInstanceCallBack: Dict[str, dict] = {}
     """卡片回调数据"""
+    _handle_messages: Dict[str, dict] = {}
+    """等待处理的信息"""
+    _handle_message_functions: Dict[str, Union[Coroutine, Callable]] = {}
+    """等待处理的信息"""
     _running_mode: List[str] = []
 
     running_status: str = "Not Running"
@@ -320,20 +324,21 @@ class Dingtalk:
             response.recall_type = "Not completed request"
             return response
         response.sendData = send_data
-        with ThreadPoolExecutor() as pool:
-            for func in self.send_message_handler:
-                send = {}
-                sig = inspect.signature(func)
-                params = sig.parameters
-                for name, param in params.items():
-                    args = [self, send_data, msg, url]
-                    for typ in args:
-                        if isinstance(typ, param.annotation):
-                            send[name] = typ
-                if inspect.iscoroutinefunction(func):
-                    _ = self.loop.create_task(logger.catch(func)(**send))
-                else:
-                    self.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send), ())
+        if self.send_message_handler:
+            with ThreadPoolExecutor() as pool:
+                for func in self.send_message_handler:
+                    send = {}
+                    sig = inspect.signature(func)
+                    params = sig.parameters
+                    for name, param in params.items():
+                        args = [self, send_data, msg, url]
+                        for typ in args:
+                            if isinstance(typ, param.annotation):
+                                send[name] = typ
+                    if inspect.iscoroutinefunction(func):
+                        _ = self.loop.create_task(logger.catch(func)(**send))
+                    else:
+                        self.loop.run_in_executor(pool, functools.partial(logger.catch(func), **send), ())
         try:
             if 'access_token' not in url:
                 switchAccessToken = None
@@ -1976,18 +1981,15 @@ class Dingtalk:
         """使用内置的Loop运行异步函数并返回结果"""
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
-    @staticmethod
-    async def wait_message(waiter: Waiter, timeout: float = None):
-        loop = asyncio.get_event_loop()
-        future = loop.create_future()
+    async def wait_message(self, waiter: Waiter, timeout: float = None):
+        future = self.loop.create_future()
 
-        async def event_handler(group: Group, member: Member, message: MessageChain):
-            # 如果future已完成，直接返回避免重复处理
+        async def event_handler(group: Group, member: Member, message: MessageChain, traceId: TraceId):
             if future.done():
                 return
-            # 调用waiter的检测方法，判断是否满足条件
             result = await waiter.detected_event(group=group, member=member, message=message)
             if result is not None:
+                self._add_traceId_event_times(traceId, "wait_message")
                 future.set_result(result)
 
         channel.use(
@@ -2078,6 +2080,7 @@ class Dingtalk:
                 member.group = group
                 if conversationType == "1":
                     group.member = member
+                    group.id = member.id
                 else:
                     member.group = group
                 try:
@@ -3163,13 +3166,24 @@ class Dingtalk:
         return None
 
     def is_send_message(self, traceId: TraceId) -> bool:
+        return self.is_message_handled(traceId=traceId, event="send_messages")
+
+    def is_message_handled(self, traceId: TraceId, event: Any = None) -> bool:
         if traceId not in self.message_trace_id:
             return False
-        if "send_messages" in self.message_trace_id[traceId]:
-            if self.message_trace_id[traceId]["send_messages"] == 0:
-                return False
+        if "event" not in self.message_trace_id[traceId]:
+            return False
+        if event:
+            if event in self.message_trace_id[traceId]["event"]:
+                if not self.message_trace_id[traceId]["event"][event]:
+                    return False
+                if isinstance(self.message_trace_id[traceId]["event"][event], int):
+                    if not self.message_trace_id[traceId]["event"][event] == 0:
+                        return False
+                return True
+            return False
+        else:
             return True
-        return False
 
     async def get_info(self, target: Union[OpenConversationId, Group, Member, int, str], force_to_update: bool = False):
         """先从缓存中读取数据，如果缓存中没有数据，则从API获取数据并更新缓存
@@ -3277,17 +3291,24 @@ class Dingtalk:
             raise ValueError(f"Invalid target type: {type(target)}")
 
     def _add_message_times(self, target: Union[TraceId, OpenConversationId, Group, Member], no_raise: bool = False):
+        return self._add_traceId_event_times(target=target, event="send_messages", no_raise=no_raise)
+
+    def _add_traceId_event_times(
+            self, target: Union[TraceId, OpenConversationId, Group, Member], event: Any, no_raise: bool = False
+            ):
         if isinstance(target, (Group, Member, OpenConversationId, TraceId)):
             if isinstance(target, (Group, Member, OpenConversationId)):
                 traceId = target.traceId
             else:
                 traceId = target
             if traceId not in self.message_trace_id:
-                self.message_trace_id[traceId] = {"send_messages": 1}
+                self.message_trace_id[traceId]["event"] = {event: 1}
             else:
-                if not self.message_trace_id[traceId].get("send_messages"):
-                    self.message_trace_id[traceId]["send_messages"] = 0
-                self.message_trace_id[traceId]["send_messages"] += 1
+                if "event" not in self.message_trace_id[traceId]:
+                    self.message_trace_id[traceId]["event"] = {}
+                if not self.message_trace_id[traceId]["event"].get(event):
+                    self.message_trace_id[traceId]["event"][event] = 0
+                self.message_trace_id[traceId]["event"][event] += 1
         else:
             if not no_raise:
                 raise ValueError(f"Invalid target type: {type(target)}")

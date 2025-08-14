@@ -1,14 +1,14 @@
-from typing import Union
-from .model import Group, Member
 from .message.chain import MessageChain
+from .model import Group, Member
 
 
 class Waiter:
 
-    def __init__(self, group: Union[Group, int], member: Union[Member, int]):
-        self.group = group if isinstance(group, int) else group.id
-        self.member = member if isinstance(member, int) else member.id
+    def __init__(self, group: Group, member: Member):
+        self.group = group
+        self.member = member
 
     async def detected_event(self, group: Group, member: Member, message: MessageChain):
-        if self.group == group.id and self.member == member.id:
+        if self.group.id == group.id and self.member.id == member.id:
             return message
+        return None
