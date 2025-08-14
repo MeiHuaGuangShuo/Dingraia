@@ -150,7 +150,7 @@ class Config:
         self.waitRadioMessageFinishedTimeout = waitRadioMessageFinishedTimeout
         self.event_callback = event_callback
         self.customStreamConnect = customStreamConnect
-        self.sendMessageOnFailed = sendMessageOnFailed
+        self.sendMessageOnFailed = sendMessageOnFailed or FailedMessage()
         self.bot: Optional[Bot] = bot
         self.stream: Optional[List[Stream]] = stream
         self.webRequestHandlers = webRequestHandlers or []
