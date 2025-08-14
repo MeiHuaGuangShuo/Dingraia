@@ -239,8 +239,8 @@ class ActionCard(BaseElement):
             orientation: 排列方向，0为竖向，1为横向，建议横向不超过5个字
         """
         if button:
-            warnings.warn("button is deprecated at v2.1.0 and later, use buttons instead!", DeprecationWarning)
-            logger.warning("1")
+            warnings.warn("button will be deprecated at v2.1.0 and later, use buttons instead!", DeprecationWarning)
+            logger.warning("button is deprecated at v2.1.0 and later, use buttons instead!")
         self.orientation = orientation
         self.buttons = buttons or button or []
         self.text = text
