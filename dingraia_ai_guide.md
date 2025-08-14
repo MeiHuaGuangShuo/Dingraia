@@ -109,6 +109,9 @@ with write_temp_file(bts, "png") as file:
 await app.send_message(group, Markdown("**这是一条加粗的消息**", title="标题"))
 ```
 
+使用 `[Content]dtmd://dingtalkclient/sendMessage?content={content}` 实现
+用户点击后自动给机器人发送消息（注： dtmd链接**仅在Markdown消息中生效**）
+
 #### 图片消息
 
 ```python
@@ -133,12 +136,14 @@ await app.send_message(group, Link(
 ```python
 await app.send_message(group, ActionCard(
     text="# 卡片标题\n内容",
-  buttons=[  # 此处参数名可以为button，为了更好表示建议使用buttons
+  buttons=[
         ActionCardButton(text="按钮1", url="https://example.com"),
         ActionCardButton(text="按钮2", url="https://example.com/page2")
     ]
 ))
 ```
+
+注：ActionCard卡片消息**不能用于触发用户发送消息**(dtmd协议)，只能作为跳转到浏览器窗口的网址
 
 ### 撤回消息
 
