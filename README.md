@@ -34,13 +34,18 @@
 并运行的异步钉钉机器人代码，用来运行 **基础** 的Webhook类型
 的微型机器人
 
+**！机器人模式只能被动接收用户主动@机器人的消息，不能主动获取用户/群组消息！**
+
 # 特点
 
 支持协程（使用ensure_future执行），支持阻塞函数的并发（使用线程池），函数捕捉报错等，支持At，支持Stream方法
 
 支持 文字, Markdown FeedCard, ActionCard和文件的发送
 
-支持应答机制 (HTTP, Stream, OutGoing未专门适配，理论支持)
+支持应答机制 (HTTP, Stream ~~, OutGoing未专门适配，理论支持~~)
+
+>
+注：框架主要以Stream开发为主，HTTP模式支持可能不完全。如果遇到问题请提交 [Issue](https://github.com/MeiHuaGuangShuo/Dingraia/issues/new/choose)
 
 支持[等待消息处理完成后再退出](#等待消息处理完成)（含超时设置）
 
