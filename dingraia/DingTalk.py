@@ -1319,13 +1319,14 @@ class Dingtalk:
         raise_status = self.config.raiseForApiError
         self.config.raiseForApiError = False
         openConversationId = self._openConversationId2str(openConversationId)
-        raw = await self.get_group(openConversationId)
+        raw = await self.get_group(openConversationId, using_cache=False)
         if raw['title'].endswith('_mirror'):
             title = raw['title'][:-7]
         else:
             title = raw['title']
         userIds = raw['user_ids']
         adminUserIds = raw['sub_admin_staff_ids']
+        invite_url = None
         if raw['success']:
             res = {"success": False, "result": {}}
             times = 0
@@ -1371,7 +1372,7 @@ class Dingtalk:
                 logger.error("获取群信息失败超过 3 次!")
                 self.config.raiseForApiError = raise_status
                 return {'success': False}
-            # invite_url = res['group_url']cidvFgTQiWWMHmvDrnf/ELoVA==
+            invite_url = res['group_url']
             # await self.send_message(OpenConversationId(openConversationId), MessageChain("新群链接: ", invite_url))
             res = await self.add_member(new_openConversationId, userIds)
             if not res.get('success'):
@@ -1385,6 +1386,7 @@ class Dingtalk:
         else:
             res = raw
         self.config.raiseForApiError = raise_status
+        res["invite_url"] = invite_url
         return res
 
     async def update_group(
