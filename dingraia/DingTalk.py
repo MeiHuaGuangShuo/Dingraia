@@ -3215,7 +3215,11 @@ class Dingtalk:
                 res = ((await self.get_group(target, using_cache=False)), time.time())
             if res:
                 if res[0]:
-                    main_info = json.loads(res[0][4])
+                    main_info = res[0][4]
+                    if main_info:
+                        main_info = json.loads(main_info)
+                    else:
+                        main_info = {}
                     main_info["dingraia_cache"] = {
                         "id"                : res[0][0],
                         "chatId"            : res[0][1],

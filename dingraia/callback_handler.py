@@ -1,6 +1,6 @@
-from .event.event import *
-from .element import EasyDict
 from .cache import cache
+from .element import EasyDict
+from .event.event import *
 
 
 def callback_handler(app, event_body: dict, raw_body=None, trace_id=None):
@@ -24,7 +24,7 @@ def callback_handler(app, event_body: dict, raw_body=None, trace_id=None):
                 else:
                     cache.execute(
                         "INSERT INTO group_info (`id`,`chatId`,`openConversationId`,`name`,`info`,`timeStamp`) VALUES "
-                        "(?,?,?,?,?,?)", ('', '', event_body.openConversationId, event_body.Title, '', time.time()))
+                        "(?,?,?,?,?,?)", ('', '', event_body.openConversationId, event_body.Title, '{}', time.time()))
                     cache.commit()
             elif event_body.EventType == 'chat_disband':
                 event = GroupDisband()
