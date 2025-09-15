@@ -9,13 +9,13 @@ from .log import logger
 
 
 class Cache:
-    db: Optional[sqlite3.Connection] = None
-    db_name: Optional[str] = None
-    cursor: Optional[sqlite3.Cursor] = None
-    enable: bool = True
 
     def __init__(self):
-        pass
+        self.db: Optional[sqlite3.Connection] = None
+        self.db_name: Optional[str] = None
+        self.cursor: Optional[sqlite3.Cursor] = None
+        self.enable: bool = True
+        self.raiseOnExecuteError: bool = False
 
     def connect(self, databaseName: str = "Dingraia_cache.db", **kwargs):
         self.db_name = databaseName
@@ -36,6 +36,8 @@ class Cache:
                 if not noErrorOutput:
                     logger.error(f"{err.__class__.__name__}: {err} command: {command}, params: {params}",
                                  _inspect=inspect.currentframe())
+                if self.raiseOnExecuteError:
+                    raise err
                 return ()
             if result:
                 return self.cursor.fetchall()
@@ -70,8 +72,10 @@ class Cache:
                 types = ', '.join(types)
                 self.execute(f"CREATE TABLE {table_name}({types});")
                 self.commit()
+                return None
             else:
                 raise ValueError("Keys is empty!")
+        return None
 
     @staticmethod
     def _type_transformer(typ: Union[type, str]):
@@ -153,9 +157,23 @@ class Cache:
             else:
                 self.create_table(t, v)
 
+    def check_and_restore(self):
+        if not self.is_connected():
+            raise SQLError("Database is not connected!")
+        tables = self.get_tables()
+        if not tables:
+            return
+        if "group_info" in tables:
+            res = cache.execute(f"SELECT * FROM `group_info`", result=True)
+            for c in res:
+                if not c[4]:
+                    cache.execute(f"UPDATE `group_info` SET `info`=? WHERE `id`=?", ('{}', c[0]))
+                    logger.info(
+                        f"Fix group_info table: '{c[2]}-{c[3] if c[3] else 'Unknown'}' info is empty, set to '{{}}'")
+                    cache.commit()
+
     @staticmethod
     def columns_match(table_columns, expected_columns):
-        # 检查表中的列是否与预期的列匹配
         for col, col_type in expected_columns.items():
             if col not in table_columns or table_columns[col] != col_type:
                 return False
