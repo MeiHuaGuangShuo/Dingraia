@@ -5,7 +5,8 @@ import time
 from contextlib import contextmanager
 from io import BufferedReader, BytesIO
 from pathlib import Path
-from typing import AsyncGenerator, Callable, Optional, Union
+from typing import Any, AsyncGenerator, Callable, Generator, Optional, Union
+from urllib.parse import quote_plus
 from uuid import uuid1
 
 import aiohttp
@@ -54,7 +55,7 @@ class NoUseClass:
 
 
 @contextmanager
-def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str) -> str:
+def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str) -> Generator[str, Any, None]:
     """临时写入Bytes到临时目录
 
     Args:
@@ -76,7 +77,28 @@ def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str
             raise TypeError(f"content must be BytesIO or BufferedReader, but got {type(content)}")
     try:
         yield str(fileName.resolve())
-    except:
+    except:  # NOQA
+        pass
+    fileName.unlink()
+
+
+@contextmanager
+def create_temp_file(file_extension: str) -> Generator[str, Any, None]:
+    """创建临时文件到临时目录（不写入数据）
+
+    Args:
+        file_extension: 文件后缀名
+
+    Returns:
+        str: 临时文件路径
+
+    """
+    fileName = Path.home() / ".dingraia" / f"temp_{uuid1()}_{int(time.time() * 1000)}.{file_extension}"
+    fileName.parent.mkdir(parents=True, exist_ok=True)
+    open(fileName, "w").close()
+    try:
+        yield str(fileName.resolve())
+    except:  # NOQA
         pass
     fileName.unlink()
 
@@ -166,3 +188,18 @@ def randomChars(length: int) -> str:
 
     """
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+
+def DTMDSendMessage(content: str, title: str = None) -> str:
+    """生成DTMD协议的用于用户向机器人发送消息的文字
+
+    Args:
+        content: 点击后用户发送的内容
+        title: 展示的文字，默认是content字样
+
+    Returns:
+        str: Markdown链接
+
+    """
+    title = title or content
+    return f"[{title}](dtmd://dingtalkclient/sendMessage?content={quote_plus(content)})"
