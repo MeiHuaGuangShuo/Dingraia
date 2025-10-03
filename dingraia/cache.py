@@ -38,12 +38,12 @@ class Cache:
                                  _inspect=inspect.currentframe())
                 if self.raiseOnExecuteError:
                     raise err
-                return ()
+                return None
             if result:
                 return self.cursor.fetchall()
             return cur
         else:
-            return ()
+            return []
 
     def get_tables(self):
         res = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';",
