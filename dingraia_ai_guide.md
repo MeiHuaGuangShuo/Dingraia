@@ -110,7 +110,108 @@ await app.send_message(group, Markdown("**这是一条加粗的消息**", title=
 ```
 
 使用 `[Content]dtmd://dingtalkclient/sendMessage?content={content}` 实现
-用户点击后自动给机器人发送消息（注： dtmd链接**仅在Markdown消息中生效**）
+用户点击后自动给机器人发送 `content` 消息（注： dtmd链接**仅在Markdown消息中生效，其他协议无法正常工作**）
+也可以从 `dingraia.tools` 导入 `DTMDSendMessage` 使用 `DTMDSendMessage(content, title=None)` 自动生成，
+其中 `content` 为用户点击后发送的信息，`title` 是此链接展示的文字
+
+注：钉钉的 Markdown 支持度一般，以下是可以使用的语法
+
+````markdown
+# 一级标题
+
+## 二级标题
+
+### 三级标题
+
+#### 四级标题
+
+##### 五级标题
+
+正文 **加粗文本** *斜体文本* [钉钉官网链接](https://www.dingtalk.com/) [元气满满]
+
+![图片展示](https://example.com/image.png)  # 仅支持铺满整个窗口，不支持设置尺寸等参数
+
+<font sizeToken=common_h3_text_style__font_size colorTokenV2=common_blue1_color>蓝色三级标题</font>
+
+第一段第一行<br>第一段第二行
+
+第二段第一行<br>第二段第二行
+
+***
+
+> 引用第一段
+>
+>> 嵌套引用第二段
+>
+> 引用第三段
+
+1. 第一个有序列表项
+
+* 第一个无序列表项
+  * 第一个嵌套无序列表项
+  * 第二个嵌套无序列表项
+* 第二个无序列表项
+
+2. 第二个有序列表项
+3. 第三个有序列表项
+
+| 表格标题1 | 表格标题2 | 表格标题3 |
+| :- | :-: | -: |
+| 左对齐内容1 | 剧中内容1 | 右对齐内容1 |
+| 左对齐内容2 | 剧中内容2 | 右对齐内容2 |
+
+```json
+{
+  "firstName": "John",
+  "lastName": "Smith",
+  "age": 25
+}
+```
+````
+
+字体尺寸表
+
+|                 尺寸 Key                  | 桌面端  | 移动端  |
+|:---------------------------------------:|:----:|:----:|
+| common_hypertitle_text_style__font_size | 64px | 28px |
+| common_largetitle_text_style__font_size | 32px | 24px |
+|     common_h1_text_style__font_size     | 24px | 20px |
+|     common_h2_text_style__font_size     | 20px | 18px |
+|     common_h3_text_style__font_size     | 18px | 18px |
+|     common_h4_text_style__font_size     | 16px | 16px |
+|     common_h5_text_style__font_size     | 15px | 15px |
+|    common_body_text_style__font_size    | 14px | 17px |
+|  common_footnote_text_style__font_size  | 12px | 12px |
+
+字体色值表
+
+| 色值 Key                   | Light   | Dark    |
+|--------------------------|---------|---------|
+| common_yellow1_color     | #EFC729 | #E9C227 |
+| common_orange1_color     | #F89125 | #F89A26 |
+| common_red1_color        | #F74E2B | #F75B37 |
+| common_pink1_color       | #E5428A | #DC4687 |
+| common_purple1_color     | #B662D1 | #B162CA |
+| common_blue1_color       | #3380FC | #3380FC |
+| common_water1_color      | #6BC9F8 | #6BC9F8 |
+| common_olive1_color      | #709214 | #708F16 |
+| common_green1_color      | #2DB045 | #2DAE4E |
+| common_level1_base_color | #171A1D | #D1D1D1 |
+| common_level2_base_color | #747677 | #8C8C8D |
+| common_level3_base_color | #A2A3A5 | #747476 |
+| common_level4_base_color | #C8C8C9 | #464749 |
+| common_gray1_color       | #888F95 | #8F8F8F |
+| common_gray2_color       | #AAAEB3 | #636363 |
+| common_gray3_color       | #C3C7CA | #4A4A4A |
+| common_gray4_color       | #CFD2D5 | #383838 |
+| common_gray5_color       | #E5E6E8 | #2B2B2B |
+| common_gray6_color       | #F1F2F3 | #1C1C1C |
+
+如需添加自定义颜色请使用下方格式
+
+```markdown
+<font color="#HEX">Content</font>
+```
 
 #### 图片消息
 
@@ -300,6 +401,64 @@ async def get_current_time(app: Dingtalk, group: Group, message: MessageChain):
     if str(message) == "当前时间" or str(message) == "现在几点":
         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await app.send_message(group, f"当前时间是: {current_time}")
+```
+
+## 缓存模块
+
+### 导入
+
+```python
+from dingraia.cache import cache
+```
+
+`cache` 是已经实例化后的缓存操作对象，封装了部分sqlite的功能。
+默认的数据库名为 `Dingraia_cache.db` 如果需要更换需要在模块级别关闭连接并打开新数据库。
+此功能依赖于 `Config` 的 `useDatabase` 选项，在不启用的时候大多数操作执行不会报错或返回空值，
+关闭数据库缓存可能会造成意料之外的后果
+
+```python
+from dingraia.lazy import *
+from dingraia.config import Config
+
+config = Config(useDatabase=True)  # 设置为 False 以禁用
+if cache.is_connected():
+  cache.close()
+  cache.connect("DBName.db")
+```
+
+### 函数和用法
+
+```python
+from dingraia.cache import cache
+from sqlite3 import Connection, Cursor
+
+cache.connect("DBName.db")
+# 连接到数据库，并获取指针等
+cache.db: Connection
+cache.cursor: Cursor
+
+cache.close()
+# 关闭和数据库的连接，并丢弃db和cursor的赋值
+cache.is_connected()
+# 检查当前是否连接了数据库
+cache.commit()
+# 用法同 self.db.commit()
+cache.backup_database()
+# 在当前时间备份数据库，在cache.init_tables()中发现异常时会自动出发
+cache.init_tables()
+# 检查数据库是否含有程序运行必备的表，没有则创建，冲突则备份后新建
+cache.execute("command", params=tuple(), result=False, noErrorOutput=False)
+# command和params用法同原来的execute, result=True则执行后返回cursor.fetchall()
+# noErrorOutput=True会在报错时不向控制台打印错误指令和信息。
+# 此方法执行时的报错行为由cache.raiseOnExecuteError控制，默认为False，即报错返回None，正常执行返回空列表，设置为True时则抛出错误
+cache.get_tables()
+# 获取全部表的名称
+cache.get_table("tableName")
+# 等同于 cache.execute(f"SELECT * FROM {tableName};", result=True)
+cache.check_and_restore()
+# 修复部分数据，用处不大
+cache.value_exist("table", "col", "value")
+# 等同于bool(cache.execute(f"SELECT * FROM `{table}` WHERE {column}=?", (value,), result=True))
 ```
 
 ## 完整模块示例
@@ -641,7 +800,7 @@ async def multi_function_bot(app: Dingtalk, group: Group, member: Member, messag
 - `async def update_object(obj: Union[Group, Member, OpenConversationId, Any])`
   从缓存中更新对象数据，自动填充缺失的属性。
 
-> `obj`: 要更新的对象，可以是Group、Member或OpenConversationId
+> `obj`: 要更新的对象，可以是Group、Member或OpenConversationId。支持仅包含id的Group和Member实例的补全
 >
 > 返回: 更新后的对象
 >
