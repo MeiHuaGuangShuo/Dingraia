@@ -55,7 +55,7 @@ class NoUseClass:
 
 
 @contextmanager
-def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str) -> Generator[str, Any, None]:
+def write_temp_file(content: Union[BytesIO, BufferedReader, bytes], file_extension: str) -> Generator[str, Any, None]:
     """临时写入Bytes到临时目录
 
     Args:
@@ -73,6 +73,8 @@ def write_temp_file(content: Union[BytesIO, BufferedReader], file_extension: str
             f.write(content.getvalue())
         elif isinstance(content, BufferedReader):
             f.write(content.read())
+        elif isinstance(content, bytes):
+            f.write(content)
         else:
             raise TypeError(f"content must be BytesIO or BufferedReader, but got {type(content)}")
     try:
