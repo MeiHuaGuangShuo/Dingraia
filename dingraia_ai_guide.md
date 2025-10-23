@@ -213,6 +213,11 @@ await app.send_message(group, Markdown("**这是一条加粗的消息**", title=
 <font color="#HEX">Content</font>
 ```
 
+注意：使用部分特性会在手机上不显示，为了多端兼容，除非用户说明，否则请使用以下提供格式：
+
+- 换行符：`\n\n`
+- 字体大小和颜色：`<font color="#HEX or ColorName(e.g. gray)" size="int">Content</font>`
+
 #### 图片消息
 
 ```python
