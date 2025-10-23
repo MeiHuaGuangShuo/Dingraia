@@ -203,9 +203,12 @@ class Dingtalk:
             send_data = msg.template
             send_data['media_id'] = msg.mediaId
             if isinstance(target, Group):
-                traceId = target.traceId
-                target = target.openConversationId
-                target.traceId = traceId
+                if target.member is None:
+                    traceId = target.traceId
+                    target = target.openConversationId
+                    target.traceId = traceId
+                else:
+                    target = target.member
             send_data['robotCode'] = self.config.bot.robotCode
             send_data['openConversationId'] = str(target)
         elif isinstance(msg, list):
