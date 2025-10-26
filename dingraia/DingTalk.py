@@ -175,6 +175,24 @@ class Dingtalk:
         if isinstance(msg, (list, tuple)):
             if len(msg) == 1:
                 msg = msg[0]
+        if isinstance(target, AiAssistantMessage):
+            if self.config.advancedSendMessage.aiAssistantMessageSupport:
+                if isinstance(msg, File):
+                    if not isinstance(msg, Image):
+                        raise ValueError("Only support Image type for AiAssistantMessage")
+                    if not msg.mediaId:
+                        msg = await self.upload_file(msg)
+                    await self.assistant_send_ai_card(target, card=f"![]({msg.mediaId})")
+                if isinstance(msg, (tuple, list)):
+                    logger.warning("AiAssistantMessage can only send 1 message.Convent to str.")
+                if not isinstance(msg, (MessageChain, str)):
+                    logger.warning("AiAssistantMessage only support str.Convent to str.")
+                res = await self.assistant_send_ai_card(target, card=str(msg))
+                response.ok = res
+                response.text = ""
+                response.url = ""
+                response.recall_type = "AiAssistantMessage"
+                return res
         if isinstance(target, str):
             if target.startswith('cid'):
                 target = OpenConversationId(target)
@@ -825,6 +843,7 @@ class Dingtalk:
             body["content"]["cardData"]["value"] = "出错了，请稍后再试"
             body["content"]["cardData"]["isError"] = True
             await self.api_request.jpost("/v1.0/aiInteraction/reply", json=gen(body))
+            return False
         body["content"]["cardData"]["isFinalize"] = True
         await self.api_request.jpost("/v1.0/aiInteraction/reply", json=gen(body))
         if event.sender.id:
@@ -832,6 +851,7 @@ class Dingtalk:
                         _inspect=['', '', ''])
         else:
             logger.info(f"[SEND] <- {repr(str(card.text))[1:-1]}", _inspect=['', '', ''])
+        return True
 
     async def send_ai_message(
             self,

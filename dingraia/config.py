@@ -109,6 +109,22 @@ class FailedMessage:
         self.onNSFWMessage = onNSFWMessage
 
 
+class AdvancedSendMessage:
+
+    def __init__(
+            self,
+            *,
+            aiAssistantMessageSupport: bool = False
+    ):
+        """
+
+        Args:
+            aiAssistantMessageSupport: 支持在send_message函数发送AI助理消息
+        """
+        self.aiAssistantMessageSupport = aiAssistantMessageSupport
+
+
+
 class Config:
 
     def __init__(
@@ -124,6 +140,7 @@ class Config:
             waitRadioMessageFinishedTimeout: int = 10,
             webRequestHandlers: List[Middleware] = None,
             raiseForApiError: bool = True,
+            advancedSendMessage: AdvancedSendMessage = None,
             sendMessageOnFailed: Optional[FailedMessage] = None,
             language: str = None,
     ):
@@ -139,6 +156,7 @@ class Config:
             autoBotConfig: 是否自动替换Bot的值
             useDatabase: 是否使用数据库，不使用数据库可能会导致异常
             raiseForApiError: 是否在请求API失败时主动抛出异常
+            advancedSendMessage: 更强大/方便的send_message，可以方便的使用一些功能
             sendMessageOnFailed: 是否在发送失败时发送替代信息
             waitRadioMessageFinishedTimeout: 停止时等待广播消息处理完成的超时时间
             webRequestHandlers: 自定义请求处理器
@@ -150,6 +168,7 @@ class Config:
         self.waitRadioMessageFinishedTimeout = waitRadioMessageFinishedTimeout
         self.event_callback = event_callback
         self.customStreamConnect = customStreamConnect
+        self.advancedSendMessage = advancedSendMessage or AdvancedSendMessage()
         self.sendMessageOnFailed = sendMessageOnFailed or FailedMessage()
         self.bot: Optional[Bot] = bot
         self.stream: Optional[List[Stream]] = stream
