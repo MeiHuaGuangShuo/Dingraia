@@ -29,3 +29,5 @@ onNoMessageSend = channel.use(ListenerSchema(listening_events=[NoMessageSend]))
 onChatQuit = channel.use(ListenerSchema(listening_events=[ChatQuit]))
 onChatKick = channel.use(ListenerSchema(listening_events=[ChatKick]))
 onGroupDisband = channel.use(ListenerSchema(listening_events=[GroupDisband]))
+
+onAiAssistantMessage = channel.use(ListenEvent=ListenerSchema(listening_events=[AiAssistantMessage]))
