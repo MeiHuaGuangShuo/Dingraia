@@ -1,9 +1,8 @@
-from .cache import cache
 from .element import EasyDict
 from .event.event import *
 
 
-def callback_handler(app, event_body: dict, raw_body=None, trace_id=None):
+def callback_handler(app: "dingraia.DingTalk.Dingtalk", event_body: dict, raw_body=None, trace_id=None):
     if raw_body is None:
         raw_body = {}
     event = None
@@ -34,7 +33,31 @@ def callback_handler(app, event_body: dict, raw_body=None, trace_id=None):
             event.operator = event_body.Operator
             event.title = event_body.Title
             event.openConversationId = OpenConversationId(event_body.OpenConversationId)
-            event.cropId = event_body.CropId
+            event.corpId = event_body.CorpId
+            event.dec_mes = event_body.to_dict()
+            event.raw_mes = raw_body
+        elif event_body.EventType == "calendar_event_change":
+            event = CalendarEventChange()
+            event.eventId = event_body.eventId
+            event.calendarEventUpdateTime = event_body.calendarEventUpdateTime
+            event.calendarEventId = event_body.calendarEventId
+            event.calendarId = event_body.calendarId
+            event.unionIdList = event_body.unionIdList
+            event.changeType = event_body.changeType
+            event.legacyCalendarEventId = event_body.legacyCalendarEventId
+            event.operator = event_body.operator.to_dict()
+            event.dec_mes = event_body.to_dict()
+            event.raw_mes = raw_body
+        elif event_body.EventType == "circle_user_action":
+            event = CircleUserAction()
+            event.allUserOnline = event_body.allUserOnline
+            event.eventId = event_body.eventId
+            event.circleCorpId = event_body.circleCorpId
+            event.optName = event_body.optName
+            event.circleUserId = event_body.circleUserid  # 此处修正了命名
+            event.belongCorpId = event_body.belongCorpId
+            event.optTime = event_body.optTime
+            event.circleOrgName = event_body.circleOrgName
             event.dec_mes = event_body.to_dict()
             event.raw_mes = raw_body
     if not event:
