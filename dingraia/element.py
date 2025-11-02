@@ -1,10 +1,10 @@
-import time
 import json
+import time
 import urllib.request
 from collections import OrderedDict
+from typing import Any, Literal, Optional, Union
+
 from .exceptions import DingtalkAPIError
-from .cache import cache
-from typing import Literal, Optional
 
 
 class OpenConversationId:
@@ -196,7 +196,7 @@ class EasyDict(dict):
 
         super().__init__(__dict)
 
-    def __getattr__(self, item, default=None):
+    def __getattr__(self, item, default=None) -> Union[Any, "EasyDict"]:
         """
         获取属性值
         Args:
