@@ -40,4 +40,6 @@ class AiAssistantMessage(BasicMessage):
     data: dict
 
     def __getattr__(self, item):
-        return self.data.get(item)
+        if item in self.data:
+            return self.data.get(item)
+        return None
