@@ -1,8 +1,9 @@
-import time
 import hashlib
+import time
 from typing import Optional, Union
-from ..element import OpenConversationId, TraceId
+
 from ..cache import cache
+from ..element import OpenConversationId, TraceId
 
 
 class Webhook:
@@ -204,7 +205,7 @@ class Bot:
     def __init__(self, id: str = None, corp_id: str = None, robot_code: str = None, origin: dict = None):
         if origin is not None:
             id = origin.get('chatbotUserId')
-            corp_id = origin.get("chatbotCorpId") or origin.get('CropId')
+            corp_id = origin.get("chatbotCorpId") or origin.get('CorpId')  # 或许有可能不是命名错误？
             robot_code = origin.get("robotCode")
         self.origin_id = id[id.rfind("$"):] if id else ""
         self.id = (int(hashlib.sha1(self.origin_id.encode('utf-8')).hexdigest(), 16)) % (

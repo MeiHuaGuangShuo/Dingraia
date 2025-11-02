@@ -163,7 +163,7 @@ app = Dingtalk(
            # Bot 参数是一定要填写的
            event_callback=CallBack("AesKey",
                                    "Token",
-                                   "CropId"),
+                                   "CorpId"),
            # event_callback 仅为作为 HTTP 模式的时候使用的，Stream模式无需填写，保持原样即可，支持单/多Stream
            stream=[Stream('AppKey1',
                           'AppSecret1')]

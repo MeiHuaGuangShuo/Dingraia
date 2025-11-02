@@ -1,8 +1,9 @@
-import pkgutil
-from dingraia.DingTalk import Dingtalk
-from dingraia.config import Config, Bot, CallBack, CustomStreamConnect, Stream
-from dingraia.saya import Saya
 import argparse
+import pkgutil
+
+from dingraia.DingTalk import Dingtalk
+from dingraia.config import Bot, CallBack, Config, Stream
+from dingraia.saya import Saya
 
 # 可修改区域 ↓
 module_dir = "example_module"  # 如果需要按模块导入，则需要填写
@@ -16,7 +17,7 @@ app = Dingtalk(
            # Bot 参数是一定要填写的
            event_callback=CallBack("AesKey",
                                    "Token",
-                                   "CropId"),
+                                   "CorpId"),
            # event_callback 仅为作为 HTTP 模式的时候使用的
            # Stream模式无需填写，保持原样即可，支持单/多Stream
            # 警告：多Stream的API功能支持目前为实验性功能，可能会遇到其他问题
