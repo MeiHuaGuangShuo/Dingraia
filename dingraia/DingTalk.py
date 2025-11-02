@@ -16,7 +16,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from functools import reduce
-from typing import Any, Coroutine, Dict, Tuple, TypeVar
+from typing import Coroutine, Dict, Tuple, TypeVar
 from urllib.parse import urlencode, urljoin
 
 import mutagen
@@ -150,13 +150,14 @@ class Dingtalk:
             self.config = Config()
 
     async def send_message(
-            self, target: Union[Group, Member, OpenConversationId, str, Webhook, None], *msg,
+            self, target: Union[Group, Member, OpenConversationId, str, Webhook, BasicMessage, None], *msg,
             headers=None
     ):
         """发送普通的文本信息
         
         Args:
-            target: 要发送的地址，可以是Group, OpenConversationId, str格式的链接, 或者None发送到测试群
+            target: 要发送的地址，可以是Group, OpenConversationId, str格式的链接, 或者None发送到测试群。
+                    使用BasicMessage需要在Config配置对应选项
             msg: 要发送的对象
             headers: 要包含的请求头
 
@@ -183,6 +184,8 @@ class Dingtalk:
                     if not msg.mediaId:
                         msg = await self.upload_file(msg)
                     await self.assistant_send_ai_card(target, card=f"![]({msg.mediaId})")
+                if isinstance(msg, Markdown):
+                    msg = msg.text
                 if isinstance(msg, (tuple, list)):
                     logger.warning("AiAssistantMessage can only send 1 message.Convent to str.")
                 if not isinstance(msg, (MessageChain, str)):
@@ -2271,8 +2274,10 @@ class Dingtalk:
             if traceId not in self.message_trace_id:
                 self.message_trace_id[traceId] = {}
             self.message_trace_id[traceId]["items"] = [res] if not isinstance(res, list) else res
+            if "corpId" in data:
+                self.message_trace_id[traceId]["corpId"] = data["corpId"]
             if hasattr(res[0], "corpId"):
-                self.message_trace_id[traceId]["corpId"] = res[0].cropId
+                self.message_trace_id[traceId]["corpId"] = res[0].corpId
             return {
                 "success"   : True,
                 "send_data": ([res] if not isinstance(res, list) else res) + [traceId],
@@ -2296,6 +2301,23 @@ class Dingtalk:
             member.unionId = body['unionId']
             member.userId = body.get('userId')
             await self.update_object(member)
+            if not member.id:
+                if self.config.getUserOnAssistantMessage:
+                    userId = member.userId
+                    if not userId:
+                        try:
+                            userId = await self.unionId2staffId(member.unionId)
+                        except:
+                            pass
+                    if userId:
+                        try:
+                            await self.get_user(userId)
+                        except DingtalkAPIError:
+                            pass
+                        else:
+                            await self.update_object(member)
+            if not member.id:
+                member.id = int(hashlib.sha256(member.unionId.encode()).hexdigest(), 16) % (10 ** 12) + 1000
             event.sender = member
             event.webhook = Webhook(body['sessionWebhook'], 600)  # 保守设计
             event.corpId = body.get('corpId')

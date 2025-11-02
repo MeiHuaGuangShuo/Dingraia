@@ -124,7 +124,6 @@ class AdvancedSendMessage:
         self.aiAssistantMessageSupport = aiAssistantMessageSupport
 
 
-
 class Config:
 
     def __init__(
@@ -142,6 +141,7 @@ class Config:
             raiseForApiError: bool = True,
             advancedSendMessage: AdvancedSendMessage = None,
             sendMessageOnFailed: Optional[FailedMessage] = None,
+            getUserOnAssistantMessage: bool = True,
             language: str = None,
     ):
         """初始化Config
@@ -158,6 +158,7 @@ class Config:
             raiseForApiError: 是否在请求API失败时主动抛出异常
             advancedSendMessage: 更强大/方便的send_message，可以方便的使用一些功能
             sendMessageOnFailed: 是否在发送失败时发送替代信息
+            getUserOnAssistantMessage: 在接收到AI助理消息时主动获取用户信息
             waitRadioMessageFinishedTimeout: 停止时等待广播消息处理完成的超时时间
             webRequestHandlers: 自定义请求处理器
             language: 语言
@@ -170,6 +171,7 @@ class Config:
         self.customStreamConnect = customStreamConnect
         self.advancedSendMessage = advancedSendMessage or AdvancedSendMessage()
         self.sendMessageOnFailed = sendMessageOnFailed or FailedMessage()
+        self.getUserOnAssistantMessage = getUserOnAssistantMessage
         self.bot: Optional[Bot] = bot
         self.stream: Optional[List[Stream]] = stream
         self.webRequestHandlers = webRequestHandlers or []
