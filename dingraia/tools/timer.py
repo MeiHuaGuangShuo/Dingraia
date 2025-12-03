@@ -1,5 +1,6 @@
-﻿import time
-import inspect
+﻿import inspect
+import time
+
 from ..log import logger
 
 
@@ -19,11 +20,17 @@ def format_time(seconds):
         hours, minutes = divmod(seconds, 3600)
         minutes, sec = divmod(minutes, 60)
         return f"{seconds:.2f} s ({int(hours)}h {int(minutes)}m {sec:.2f}s)"
-    else:
+    elif seconds < 365 * 86400:
         days, hours = divmod(seconds, 86400)
         hours, minutes = divmod(seconds, 3600)
         minutes, sec = divmod(minutes, 60)
         return f"{seconds:.2f} s ({int(days)}d {int(hours)}h {int(minutes)}m {sec:.2f}s)"
+    else:
+        years, days = divmod(seconds, 365 * 86400)
+        days, hours = divmod(days, 86400)
+        hours, minutes = divmod(hours, 3600)
+        minutes, sec = divmod(minutes, 60)
+        return f"{seconds:.2f} s ({int(years)}y {int(days)}d {int(hours)}h {int(minutes)}m {sec:.2f}s)"
 
 
 class TimeCost:
