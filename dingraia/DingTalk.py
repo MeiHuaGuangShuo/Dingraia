@@ -2147,12 +2147,7 @@ class Dingtalk:
                                 "event_type": [GettingMessageError],
                                 "returns"   : ""
                             }
-                    out_mes = mes
-                    for _ in out_mes:
-                        if mes.startswith(" "):
-                            mes = mes[1:]
-                        else:
-                            break
+                    mes = mes.lstrip()
                     message = MessageChain(mes, at=at_users)
                 elif data.get('msgtype') == 'richText':
                     richText = data.get('content', {}).get('richText', [])
@@ -2940,33 +2935,37 @@ class Dingtalk:
 
         async def main_stream(task_name: str):
             while not exit_signal:
-                if not self.stream_connect:
-                    connection = await open_connection(task_name)
-                else:
-                    key = self.config.bot.appKey
-                    secret = self.config.bot.appSecret
-                    if self.stream_connect.SignHandler:
-                        try:
-                            if inspect.iscoroutinefunction(self.stream_connect.SignHandler):
-                                if isinstance(self.stream_connect.SignHandler, str):
-                                    connection = {"endpoint": "Pass", "ticket": "Pass"}
-                                    # 你问我为什么要加上这句看起来没什么用的代码？因为我的IDE抽风识别不了这是异步函数一直报Warning
-                                else:
-                                    connection = await self.stream_connect.SignHandler(key, secret)
-                            elif inspect.isfunction(self.stream_connect.SignHandler):
-                                connection = self.stream_connect.SignHandler(key, secret)
-                            elif isinstance(self.stream_connect.SignHandler, str):
-                                if "http" not in self.stream_connect.SignHandler:
-                                    raise ValueError(f"Incorrect signer url, consider use None to skip sign")
-                                connection = await open_connection(task_name, self.stream_connect.SignHandler)
-                            else:
-                                raise ValueError(f"Incorrect signer param, consider use None to skip sign")
-                        except:  # NOQA
-                            logger.exception("Error while signing the connection")
-                            logger.warning("Please restart the program to retry.")
-                            return
+                try:
+                    if not self.stream_connect:
+                        connection = await open_connection(task_name)
                     else:
-                        connection = {"endpoint": "Pass", "ticket": "Pass"}
+                        key = self.config.bot.appKey
+                        secret = self.config.bot.appSecret
+                        if self.stream_connect.SignHandler:
+                            try:
+                                if inspect.iscoroutinefunction(self.stream_connect.SignHandler):
+                                    if isinstance(self.stream_connect.SignHandler, str):
+                                        connection = {"endpoint": "Pass", "ticket": "Pass"}
+                                        # 你问我为什么要加上这句看起来没什么用的代码？因为我的IDE抽风识别不了这是异步函数一直报Warning
+                                    else:
+                                        connection = await self.stream_connect.SignHandler(key, secret)
+                                elif inspect.isfunction(self.stream_connect.SignHandler):
+                                    connection = self.stream_connect.SignHandler(key, secret)
+                                elif isinstance(self.stream_connect.SignHandler, str):
+                                    if "http" not in self.stream_connect.SignHandler:
+                                        raise ValueError(f"Incorrect signer url, consider use None to skip sign")
+                                    connection = await open_connection(task_name, self.stream_connect.SignHandler)
+                                else:
+                                    raise ValueError(f"Incorrect signer param, consider use None to skip sign")
+                            except:  # NOQA
+                                logger.exception("Error while signing the connection")
+                                logger.warning("Please restart the program to retry.")
+                                return
+                        else:
+                            connection = {"endpoint": "Pass", "ticket": "Pass"}
+                except Exception as err:
+                    logger.exception(err)
+                    connection = None
 
                 if not connection:
                     if connection is None:
@@ -3352,6 +3351,9 @@ class Dingtalk:
                 traceId = target.traceId
             else:
                 traceId = target
+            if not traceId:
+                if not no_raise:
+                    raise ValueError(f"Not traceId found for {target}")
             if traceId not in self.message_trace_id:
                 self.message_trace_id[traceId]["event"] = {event: 1}
             else:
