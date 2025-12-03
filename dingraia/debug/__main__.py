@@ -1,13 +1,14 @@
-import signal
-import platform
-import os
-import sys
 import argparse
+import os
+import platform
+import signal
 import subprocess
+import sys
 import time
 
-from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
+
 from ..log import logger
 
 python_executable = sys.executable
@@ -21,10 +22,25 @@ lastReloadTime = time.time()
 class FileChangedHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
+        if not event.is_directory:
+            self._handle(event.src_path)
+
+    # 2. rsync 默认行为：临时文件 -> rename 覆盖目标
+    def on_moved(self, event):
+        # event.dest_path 才是真正的“目标文件”
+        if not event.is_directory:
+            self._handle(event.dest_path)
+
+    # 3. 个别情况下 rsync 会触发 CREATE（比如新文件）
+    def on_created(self, event):
+        if not event.is_directory:
+            self._handle(event.src_path)
+
+    def _handle(self, src_path):
         global lastReloadTime
         if not isOnReload:
-            if list(filter(lambda x: event.src_path.endswith(x), watch_file_type)):
-                logger.warning(f'文件 {event.src_path} 发生了变动')
+            if list(filter(lambda x: src_path.endswith(x), watch_file_type)):
+                logger.warning(f'文件 {src_path} 发生了变动')
                 if time.time() - lastReloadTime < waitAfterLastReload:
                     logger.warning(f'距离上次重载时间过短, 设定值为 {waitAfterLastReload} 秒')
                     return
