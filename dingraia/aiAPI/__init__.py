@@ -1,17 +1,17 @@
 """
 
 """
-import re
 import json
 import random
+import re
+from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Union
 
 import aiohttp
 
-from ..model import Member, Group
-from ..log import logger
-from ..tools import streamProcessor
 from ..cache import cache
-from typing import Any, AsyncGenerator, Dict, Literal, Optional, Union, List
+from ..log import logger
+from ..model import Group, Member
+from ..tools import streamProcessor
 
 
 class APIKeys:
@@ -165,6 +165,8 @@ class aiAPI:
             ):
         if isinstance(user, Member):
             usrIdent = self.extractUser(user, "Null")
+            if usrIdent not in self._userMessages:
+                self._userMessages[usrIdent] = []
             if clearHistory:
                 self._userMessages[usrIdent].clear()
             self._userMessages[usrIdent].insert(0, {"role": "system", "content": prompt})
