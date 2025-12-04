@@ -3354,6 +3354,7 @@ class Dingtalk:
             if not traceId:
                 if not no_raise:
                     raise ValueError(f"Not traceId found for {target}")
+                return
             if traceId not in self.message_trace_id:
                 self.message_trace_id[traceId]["event"] = {event: 1}
             else:
